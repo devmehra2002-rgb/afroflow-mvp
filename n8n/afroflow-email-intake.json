@@ -11,11 +11,20 @@
       "name": "Read me",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-160, -140]
+      "position": [
+        -160,
+        -140
+      ]
     },
     {
       "parameters": {
-        "pollTimes": { "item": [ { "mode": "everyMinute" } ] },
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
         "simple": true,
         "filters": {},
         "options": {}
@@ -24,7 +33,10 @@
       "name": "Gmail Trigger",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.2,
-      "position": [340, 160]
+      "position": [
+        340,
+        160
+      ]
     },
     {
       "parameters": {
@@ -33,19 +45,27 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Intake-Secret", "value": "PASTE_INTAKE_SECRET_HERE" }
+            {
+              "name": "X-Intake-Secret",
+              "value": "PASTE_INTAKE_SECRET_HERE"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ messageId: $json.id, from: ($json.From || ($json.from && $json.from.text) || ''), subject: ($json.Subject || $json.subject || ''), body: ($json.text || $json.snippet || ''), date: ($json.date ? new Date($json.date).toISOString() : new Date().toISOString()) }) }}",
-        "options": { "timeout": 60000 }
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
       },
       "id": "d9e8b3a1-7c52-4f60-b1a4-2e6f8c03d203",
       "name": "Send to AfroFlow",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [620, 160],
+      "position": [
+        620,
+        160
+      ],
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 5000
@@ -53,10 +73,20 @@
   ],
   "connections": {
     "Gmail Trigger": {
-      "main": [ [ { "node": "Send to AfroFlow", "type": "main", "index": 0 } ] ]
+      "main": [
+        [
+          {
+            "node": "Send to AfroFlow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "pinData": {}
 }

@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { CONFIDENCE_THRESHOLD, DEFAULT_MODEL, REPLY_WINDOW_HOURS, TOTAL_STEPS, MAX_BODY_CHARS } from "@/lib/intake/constants";
 import { extractEnquiry, loadPrompt, type Enquiry } from "@/lib/intake/extract";
-import { applyPreviousOrderRule, parseSender, routeInquiry, secretsMatch } from "@/lib/intake/rules";
+import { applyPreviousOrderRule, parseGmailMessage, parseSender, routeInquiry, secretsMatch } from "@/lib/intake/rules";
 
 export const maxDuration = 60;
 
@@ -22,7 +22,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const b = await req.json().catch(() => null);
+  const raw = await req.json().catch(() => null);
+  // Accepts either plain fields ({from, subject, body, date, messageId}) or a
+  // raw Gmail message straight from n8n's Gmail Trigger (has "payload"/"snippet").
+  const gm = raw && (raw.payload || (raw.snippet && raw.id)) ? parseGmailMessage(raw) : null;
+  const b = raw && { ...raw, from: raw.from || gm?.from, subject: raw.subject ?? gm?.subject, body: raw.body ?? gm?.body, date: raw.date ?? gm?.date, messageId: raw.messageId ?? gm?.messageId };
   const from = typeof b?.from === "string" ? b.from : "";
   const subject = typeof b?.subject === "string" ? b.subject : "";
   const body = typeof b?.body === "string" ? b.body : "";

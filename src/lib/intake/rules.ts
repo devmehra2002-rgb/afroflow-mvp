@@ -102,3 +102,35 @@ export function applyPreviousOrderRule(
     unresolved: false,
   };
 }
+
+// ---- Gmail's own message format ----
+// n8n's Gmail Trigger hands over { id, snippet, internalDate, payload:{headers, parts...} }.
+// Reading it here (instead of in n8n expressions) means the n8n workflow only has
+// to forward the item as-is.
+interface GmailPart { mimeType?: string; headers?: { name: string; value: string }[]; body?: { data?: string }; parts?: GmailPart[] }
+export interface GmailMessage { id?: string; snippet?: string; internalDate?: string; payload?: GmailPart }
+
+const b64url = (s: string) => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+function findPart(p: GmailPart | undefined, mime: string): string | null {
+  if (!p) return null;
+  if (p.mimeType === mime && p.body?.data) return b64url(p.body.data);
+  for (const c of p.parts ?? []) { const r = findPart(c, mime); if (r) return r; }
+  return null;
+}
+const stripHtml = (h: string) => h.replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ").replace(/<br\s*\/?>|<\/p>|<\/div>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/[ \t]+/g, " ").trim();
+
+export function parseGmailMessage(m: GmailMessage): { messageId: string | null; from: string; subject: string; body: string; date: string | null } {
+  const headers = m.payload?.headers ?? [];
+  const h = (n: string) => headers.find((x) => x.name.toLowerCase() === n)?.value ?? "";
+  const plain = findPart(m.payload, "text/plain");
+  const html = plain ? null : findPart(m.payload, "text/html");
+  const topLevel = !plain && !html && m.payload?.body?.data ? b64url(m.payload.body.data) : null;
+  const ms = Number(m.internalDate);
+  return {
+    messageId: m.id ?? null,
+    from: h("from"),
+    subject: h("subject"),
+    body: (plain ?? (html ? stripHtml(html) : topLevel) ?? m.snippet ?? "").trim(),
+    date: Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : h("date") ? new Date(h("date")).toISOString() : null,
+  };
+}

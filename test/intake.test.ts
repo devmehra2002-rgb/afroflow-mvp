@@ -1,6 +1,6 @@
 // Tests for the email-intake logic. The AI is MOCKED: no network, no API key.
 import { extractEnquiry, loadPrompt, enquirySchema, type AnthropicLike, type Enquiry } from "../src/lib/intake/extract";
-import { parseSender, secretsMatch, routeInquiry, applyPreviousOrderRule, findOrderReference } from "../src/lib/intake/rules";
+import { parseSender, secretsMatch, routeInquiry, applyPreviousOrderRule, findOrderReference, parseGmailMessage } from "../src/lib/intake/rules";
 
 let passed = 0, failed = 0;
 const ok = (c: boolean, label: string) => { if (c) passed++; else { failed++; console.error("FAIL:", label); } };
@@ -24,6 +24,21 @@ eq(parseSender("Dev Mehra <Dev_Mehra@Forge27.Mesaschool.co>"), { email: "dev_meh
 eq(parseSender("a@b.com"), { email: "a@b.com", name: null }, "plain email");
 eq(parseSender('"Chip, Monk" <chipmonk.snacks@gmail.com>').email, "chipmonk.snacks@gmail.com", "quoted name");
 eq(parseSender("not an email").email, null, "garbage sender has no email");
+
+// ---- Gmail raw format (what n8n really sends) ----
+{
+  const enc = (x: string) => Buffer.from(x).toString("base64url");
+  const msg = { id: "1a15fd599161aa48", snippet: "Hi, 2 x 40 ft...", internalDate: "1792608000000",
+    payload: { mimeType: "multipart/alternative", headers: [{ name: "From", value: "James <dev_mehra@forge27.mesaschool.co>" }, { name: "Subject", value: "Brake shoes again" }],
+      parts: [{ mimeType: "text/plain", body: { data: enc("Hi,\n\n2 x 40 ft, same brake shoes as last order, CIF Mombasa, by December.") } }, { mimeType: "text/html", body: { data: enc("<p>ignored</p>") } }] } };
+  const g = parseGmailMessage(msg);
+  eq([g.messageId, g.from, g.subject], ["1a15fd599161aa48", "James <dev_mehra@forge27.mesaschool.co>", "Brake shoes again"], "Gmail headers read from payload");
+  ok(g.body.startsWith("Hi,") && g.body.includes("CIF Mombasa"), "plain-text part is decoded");
+  eq(g.date, new Date(1792608000000).toISOString(), "internalDate becomes the received date");
+  const htmlOnly = parseGmailMessage({ id: "x", payload: { mimeType: "text/html", headers: [], body: { data: enc("<div>Need <b>soda ash</b><br>20 ft</div>") } } });
+  ok(htmlOnly.body.includes("soda ash") && !htmlOnly.body.includes("<"), "html-only email is turned into text");
+  eq(parseGmailMessage({ id: "y", snippet: "just the snippet", payload: { headers: [] } }).body, "just the snippet", "falls back to the snippet");
+}
 
 // ---- shared secret ----
 ok(secretsMatch("abc123", "abc123"), "equal secrets match");
