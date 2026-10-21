@@ -384,7 +384,10 @@ function docTypesForStep(stepIndex){ return DOCUMENT_TASK_LINKS.filter(l=>l.step
 // Scanning needs the real file (to read and compare it), real storage, and a
 // database for scan/discrepancy history, none of which the rest of this app
 // uses — see /api/scan-documents and /api/scan-documents/:id/scan.
-const SCANNABLE_DOC_TYPES = ['Proforma Invoice','Purchase Order','Commercial Invoice','Packing List','Bill of Lading'];
+// Off for the email-intake demo: the scanner is a later release and needs its
+// own API key setup. Flip to true to bring its buttons and badges back.
+const SCANNER_ENABLED = false;
+const SCANNABLE_DOC_TYPES = SCANNER_ENABLED ? ['Proforma Invoice','Purchase Order','Commercial Invoice','Packing List','Bill of Lading'] : [];
 
 function healthCat(h){ if(h>=80) return {key:'good',label:'On Track'}; if(h>=50) return {key:'warn',label:'Attention Required'}; return {key:'crit',label:'Delayed / Blocked'}; }
 
@@ -504,43 +507,69 @@ function stepStatusText(s){
 
 let ORDERS = RAW_ORDERS.map(buildOrder);
 
-try{
-  const saved = JSON.parse(localStorage.getItem('afroflow_new_orders')||'[]');
-  saved.forEach(s=>ORDERS.unshift(buildOrder(s)));
-}catch(e){}
-try{
-  const prog = JSON.parse(localStorage.getItem('afroflow_progress')||'{}');
-  ORDERS.forEach(o=>{
-    const p = prog[o.id];
-    if(p==null) return;
-    // Older saved progress was just a bare number — keep loading it fine,
-    // it simply predates document-linked completion.
-    if(typeof p === 'number'){ o.doneCount = p; }
-    else { o.doneCount = p.doneCount; o.docSteps = p.docSteps || []; }
+// ---------- SHARED DATABASE LAYER ----------
+// Orders, their progress and their per-order state now live in Postgres
+// (via /api/orders) so the whole team sees the same data. Everything below
+// keeps an in-memory copy (ORDERS / ORDER_META) so the render code stays
+// synchronous, and writes changes through to the server.
+const ORDER_META = {};   // orderId -> {documents, vessel, scanDocIds, criticalBlocks}
+function metaOf(orderId){ return ORDER_META[orderId] || (ORDER_META[orderId] = {}); }
+
+const _persistChain = {};
+function persistOrder(orderId){
+  const o = ORDERS.find(x=>x.id===orderId);
+  if(!o) return;
+  const body = JSON.stringify({
+    doneCount:o.doneCount, docSteps:o.docSteps||[], data:metaOf(orderId),
+    raw: RAW_ORDERS.find(r=>r.id===orderId) || undefined,
   });
-}catch(e){}
+  // one request at a time per order, so saves can't arrive out of order
+  _persistChain[orderId] = (_persistChain[orderId]||Promise.resolve()).then(async()=>{
+    try{
+      const res = await fetch('/api/orders/'+encodeURIComponent(orderId), {method:'PUT', headers:{'Content-Type':'application/json'}, body});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+    }catch(e){ showToast('Could not save your change — check your connection.'); }
+  });
+}
+
+function applyOrderRow(o, row){
+  if(row){
+    o.doneCount = row.doneCount; o.docSteps = row.docSteps || []; o.customerId = row.customerId || null;
+    ORDER_META[o.id] = row.data || {};
+  } else if(!ORDER_META[o.id]) ORDER_META[o.id] = {};
+  return o;
+}
+
+async function loadState(){
+  const res = await fetch('/api/orders', {credentials:'same-origin'});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const rows = await res.json();
+  const byId = {}; rows.forEach(r=>{ byId[r.id]=r; });
+  const seedIds = new Set(RAW_ORDERS.map(r=>r.id));
+  const fromDb = rows.filter(r=>!seedIds.has(r.id)).map(r=>applyOrderRow(buildOrder(r), r));
+  const seeds = RAW_ORDERS.map(r=>applyOrderRow(buildOrder(r), byId[r.id]));
+  ORDERS = [...fromDb, ...seeds];
+}
+
+function showBackendError(msg){
+  const el = document.getElementById('content');
+  if(!el || document.getElementById('backendBanner')) return;
+  el.insertAdjacentHTML('afterbegin', `<div id="backendBanner" class="blocker-box" style="margin-bottom:16px;"><h4>Can't reach the shared database</h4><p>${msg} Showing the built-in example only — reload the page to try again.</p></div>`);
+}
 
 function saveProgress(orderId, doneCount, docSteps){
-  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_progress')||'{}'); }catch(e){}
-  m[orderId] = {doneCount, docSteps: docSteps||[]};
-  localStorage.setItem('afroflow_progress', JSON.stringify(m));
+  const o = ORDERS.find(x=>x.id===orderId);
+  if(!o) return;
+  o.doneCount = doneCount; o.docSteps = docSteps || [];
+  persistOrder(orderId);
 }
 
 // ---------- LINKED DOCUMENTS (Feature 3) ----------
 // Metadata only — name, type, upload date. There's no backend here, so we
 // can't actually store file bytes anywhere durable or shared; this records
 // that the document was logged, not the file itself.
-function getUploadedDocuments(orderId){
-  try{
-    const m = JSON.parse(localStorage.getItem('afroflow_documents')||'{}');
-    return m[orderId] || [];
-  }catch(e){ return []; }
-}
-function saveUploadedDocuments(orderId, docs){
-  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_documents')||'{}'); }catch(e){}
-  m[orderId] = docs;
-  localStorage.setItem('afroflow_documents', JSON.stringify(m));
-}
+function getUploadedDocuments(orderId){ return metaOf(orderId).documents || []; }
+function saveUploadedDocuments(orderId, docs){ metaOf(orderId).documents = docs; persistOrder(orderId); }
 
 function showToast(msg){
   const el = document.createElement('div');
@@ -558,29 +587,14 @@ function showToast(msg){
 // have something to read, even while a fetch is in flight.
 const SCAN_CACHE = {};
 
-function getScanDocId(orderId, docType){
-  try{ const m = JSON.parse(localStorage.getItem('afroflow_scan_doc_ids')||'{}'); return (m[orderId]||{})[docType] || null; }
-  catch(e){ return null; }
-}
-function setScanDocId(orderId, docType, id){
-  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_scan_doc_ids')||'{}'); }catch(e){}
-  m[orderId] = m[orderId] || {};
-  m[orderId][docType] = id;
-  localStorage.setItem('afroflow_scan_doc_ids', JSON.stringify(m));
-}
+function getScanDocId(orderId, docType){ return (metaOf(orderId).scanDocIds||{})[docType] || null; }
+function setScanDocId(orderId, docType, id){ const m=metaOf(orderId); m.scanDocIds = m.scanDocIds||{}; m.scanDocIds[docType]=id; persistOrder(orderId); }
 
 // Steps currently reopened/blocked because their last scan found unresolved
 // Critical discrepancies — separate from docSteps, which just tracks
 // "completed via document upload".
-function getCriticalBlocks(orderId){
-  try{ const m = JSON.parse(localStorage.getItem('afroflow_critical_blocks')||'{}'); return m[orderId] || []; }
-  catch(e){ return []; }
-}
-function setCriticalBlocks(orderId, arr){
-  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_critical_blocks')||'{}'); }catch(e){}
-  m[orderId] = arr;
-  localStorage.setItem('afroflow_critical_blocks', JSON.stringify(m));
-}
+function getCriticalBlocks(orderId){ return metaOf(orderId).criticalBlocks || []; }
+function setCriticalBlocks(orderId, arr){ metaOf(orderId).criticalBlocks = arr; persistOrder(orderId); }
 
 function scanCacheEntry(orderId, docType){
   const docId = getScanDocId(orderId, docType);
@@ -847,23 +861,12 @@ function deleteLinkedDocument(orderId, docType){
 // marinetraffic.com), attached only to the one seed example order.
 const SEED_VESSELS = { 'AA-2026-020': {name:'Ever Given', imo:'9811000'} };
 function getVessel(orderId){
-  try{
-    const m = JSON.parse(localStorage.getItem('afroflow_vessels')||'{}');
-    if(Object.prototype.hasOwnProperty.call(m, orderId)) return m[orderId];
-  }catch(e){}
+  const m = metaOf(orderId);
+  if(Object.prototype.hasOwnProperty.call(m, 'vessel')) return m.vessel;
   return SEED_VESSELS[orderId] || null;
 }
-function saveVessel(orderId, vessel){
-  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_vessels')||'{}'); }catch(e){}
-  m[orderId]=vessel;
-  localStorage.setItem('afroflow_vessels', JSON.stringify(m));
-}
+function saveVessel(orderId, vessel){ metaOf(orderId).vessel = vessel; persistOrder(orderId); }
 function marineTrafficUrl(imo){ return `https://www.marinetraffic.com/en/ais/details/ships/imo:${encodeURIComponent(imo)}`; }
-function nextOrderId(){
-  const seq = Number(localStorage.getItem('afroflow_seq')||'0') + 1;
-  localStorage.setItem('afroflow_seq', String(seq));
-  return `AA-2026-${String(seq).padStart(3,'0')}`;
-}
 
 // One live, actionable task per open order — the step currently active.
 // Ticking it off is what advances that order's workflow bar.
@@ -1562,10 +1565,44 @@ function viewSettings(){
     ['Documentation','Commercial invoices, packing lists, certificates.', TEAM.docs],
     ['Finance','Payments, banking, eBRC.', TEAM.finance],
   ];
-  return `<div class="table-wrap"><table>
+  const local = readLocalForImport();
+  const importCard = `<div class="card" style="padding:18px 20px; margin-bottom:20px;">
+    <h3 style="font-size:13.5px; margin-bottom:6px;">Import orders from this browser</h3>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 12px;">Orders used to be saved only in the browser they were created in. This copies them into the shared database so the whole team sees them. ${local.orders.length ? `Found <strong>${local.orders.length}</strong> order${local.orders.length>1?'s':''} saved in this browser.` : 'No orders saved in this browser.'} Safe to run more than once — nothing is duplicated.</p>
+    <button class="btn btn-primary" data-import-local ${local.orders.length?'':'disabled'}>Import my local data</button>
+  </div>`;
+  return importCard + `<div class="table-wrap"><table>
     <thead><tr><th>Role</th><th>Access</th><th>Assigned To</th></tr></thead>
     <tbody>${roles.map(r=>`<tr style="cursor:default;"><td class="cell-strong">${r[0]}</td><td style="max-width:420px;">${r[1]}</td><td>${ownerChip(r[2])}</td></tr>`).join('')}</tbody>
   </table></div>`;
+}
+
+// ---------- ONE-TIME IMPORT FROM LOCAL STORAGE ----------
+// The only remaining use of localStorage: reading what older versions of the
+// app saved in this browser, so it can be copied into the shared database.
+function readLocalForImport(){
+  const get = (k, d)=>{ try{ return JSON.parse(localStorage.getItem(k)||JSON.stringify(d)); }catch(e){ return d; } };
+  const orders = get('afroflow_new_orders', []);
+  const progress = get('afroflow_progress', {});
+  const documents = get('afroflow_documents', {});
+  const vessels = get('afroflow_vessels', {});
+  // The built-in sample order may carry saved progress/vessel/documents too.
+  const seed = RAW_ORDERS.filter(r=> progress[r.id]!=null || documents[r.id] || Object.prototype.hasOwnProperty.call(vessels, r.id)).map(r=>({...r, keepId:true}));
+  return {orders, seed, progress, documents, vessels};
+}
+async function importLocalData(){
+  const local = readLocalForImport();
+  const all = [...local.orders, ...local.seed];
+  if(!all.length){ showToast('Nothing to import from this browser.'); return; }
+  showToast('Importing…');
+  try{
+    const res = await fetch('/api/import-local', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({orders:all, progress:local.progress, documents:local.documents, vessels:local.vessels})});
+    const out = await res.json();
+    if(!res.ok) throw new Error(out.error || res.status);
+    await loadState();
+    showToast(`Imported ${out.imported} order${out.imported===1?'':'s'}${out.skipped?` (${out.skipped} already there)`:''}.`);
+    route();
+  }catch(e){ showToast('Import failed: '+(e.message||e)); }
 }
 
 // ---------- NEW ORDER MODAL ----------
@@ -1614,7 +1651,7 @@ function showFormError(msg){
   el.textContent = msg;
   el.style.display = 'block';
 }
-function createOrderFromForm(){
+async function createOrderFromForm(){
   const customer = document.getElementById('f_customer').value.trim() || 'New Customer Ltd';
   const country = document.getElementById('f_country').value.trim() || 'Kenya';
   const product = document.getElementById('f_product').value.trim() || 'Export Product';
@@ -1631,17 +1668,23 @@ function createOrderFromForm(){
   if(inquiryDate > TODAY) return showFormError('Inquiry Received Date cannot be in the future.');
   if(shipDate < inquiryDate) return showFormError('Expected Shipment Date cannot be earlier than the Inquiry Received Date.');
 
-  const id = nextOrderId();
   // createdAt is the true, automatic record-creation timestamp; inquiryDate
-  // is the editable business date entered above.
-  const raw = {id, customer, country, product, containerType, containerCount, value, terms, ship, inquiryDate:inquiryRaw, createdAt:new Date().toISOString()};
-  ORDERS.unshift(buildOrder(raw));
-  let saved=[]; try{ saved = JSON.parse(localStorage.getItem('afroflow_new_orders')||'[]'); }catch(e){}
-  saved.unshift(raw);
-  localStorage.setItem('afroflow_new_orders', JSON.stringify(saved));
-  saveProgress(id, 1, []);
+  // is the editable business date entered above. The server assigns the id.
+  const payload = {customer, country, product, containerType, containerCount, value, terms, ship, inquiryDate:inquiryRaw, createdAt:new Date().toISOString()};
+  const btn = document.getElementById('modalCreate');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  let row;
+  try{
+    const res = await fetch('/api/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    row = await res.json();
+  }catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = 'Create Order'; }
+    return showFormError('Could not save the order — check your connection and try again.');
+  }
+  ORDERS.unshift(applyOrderRow(buildOrder(row), row));
   closeModal();
-  location.hash = '#/orders/' + id;
+  location.hash = '#/orders/' + row.id;
 }
 
 // ---------- EVENTS ----------
@@ -1651,7 +1694,7 @@ function afterRender(page, id){
   // Fetch scan status once per order visit — refreshScanCache() re-renders
   // itself when the data arrives, and subsequent actions (upload/scan/review)
   // call it explicitly, so this only needs to fire on first entry.
-  if(page==='orders' && id && activeTab==='documents' && !SCAN_CACHE[id]) refreshScanCache(id);
+  if(SCANNER_ENABLED && page==='orders' && id && activeTab==='documents' && !SCAN_CACHE[id]) refreshScanCache(id);
 
   document.getElementById('ordersSearch')?.addEventListener('input', e=>{ ordersFilters.q = e.target.value; renderOrdersContainer(); });
   document.getElementById('stageFilter')?.addEventListener('change', e=>{ ordersFilters.stage = e.target.value; renderOrdersContainer(); });
@@ -1757,6 +1800,8 @@ document.addEventListener('click', (e)=>{
     return;
   }
 
+  if(e.target.closest('[data-import-local]')){ e.stopPropagation(); importLocalData(); return; }
+
   const saveVesselEl = e.target.closest('[data-save-vessel]');
   if(saveVesselEl){
     e.stopPropagation();
@@ -1784,5 +1829,10 @@ document.getElementById('menuBtn').addEventListener('click', ()=> document.getEl
 if(window.matchMedia('(max-width:760px)').matches) document.getElementById('menuBtn').style.display='flex';
 
 window.addEventListener('hashchange', route);
-route();
+(async function bootstrap(){
+  let failed = null;
+  try{ await loadState(); }catch(e){ failed = String(e && e.message || e); RAW_ORDERS.forEach(r=>{ ORDER_META[r.id] = ORDER_META[r.id] || {}; }); }
+  route();
+  if(failed) showBackendError('('+failed+')');
+})();
 </script>

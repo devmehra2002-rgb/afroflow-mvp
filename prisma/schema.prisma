@@ -92,3 +92,89 @@ model ScanDiscrepancy {
 
   @@index([scanId])
 }
+
+// ---- MVP email intake (tables created by prisma/sql/001_mvp_tables.sql) ----
+
+model OpsCustomer {
+  id        String             @id @default(cuid())
+  name      String
+  country   String?
+  createdAt DateTime           @default(now())
+  emails    OpsCustomerEmail[]
+  orders    OpsOrder[]
+  inquiries Inquiry[]
+}
+
+model OpsCustomerEmail {
+  email      String      @id
+  customerId String
+  customer   OpsCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+model OpsOrder {
+  id              String          @id
+  customerId      String?
+  customer        OpsCustomer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName    String
+  country         String?
+  product         String
+  qty             String?
+  containerType   String?
+  containerCount  Int?
+  value           Float           @default(0)
+  terms           String?
+  shipDate        DateTime        @db.Date
+  inquiryDate     DateTime?       @db.Date
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now())
+  doneCount       Int             @default(1)
+  docSteps        Int[]
+  data            Json            @default("{}")
+  sourceInquiryId String?
+  activity        OrderActivity[]
+  inquiries       Inquiry[]
+
+  @@index([customerId])
+}
+
+model Inquiry {
+  id                String         @id @default(cuid())
+  gmailMessageId    String         @unique
+  fromEmail         String
+  fromName          String?
+  subject           String?
+  bodyText          String?
+  receivedAt        DateTime
+  replyByAt         DateTime
+  status            String         @default("NEW")
+  routeReason       String?
+  customerId        String?
+  customer          OpsCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId           String?
+  order             OpsOrder?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  isBuyerEnquiry    Boolean?
+  overallConfidence Float?
+  extracted         Json?
+  promptVersion     String?
+  model             String?
+  createdAt         DateTime       @default(now())
+  activity          OrderActivity[]
+
+  @@index([status])
+  @@index([customerId])
+}
+
+model OrderActivity {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     OpsOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kind      String
+  text      String
+  inquiryId String?
+  inquiry   Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
