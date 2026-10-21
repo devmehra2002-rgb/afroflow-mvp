@@ -1764,7 +1764,7 @@ async function dismissInquiry(id){
 }
 
 // refresh shared data in the background so new emails appear without a reload
-setInterval(async()=>{
+async function pollInquiries(){
   if(document.hidden) return;
   const changed = await loadInquiries();
   if(!changed) return;
@@ -1772,7 +1772,10 @@ setInterval(async()=>{
   if(/^#\/(inquiries|customers|dashboard)/.test(location.hash) && !document.getElementById('modalBack')){
     const y = window.scrollY; route(); window.scrollTo(0,y);
   }
-}, 15000);
+}
+setInterval(pollInquiries, 15000);
+// coming back to this tab (e.g. from Gmail) refreshes straight away
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pollInquiries(); });
 // keep the "reply within" timers ticking
 setInterval(()=>{
   document.querySelectorAll('[data-replyby]').forEach(el=>{
