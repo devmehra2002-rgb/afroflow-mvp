@@ -96,7 +96,7 @@ const args = { prompt: "p", from: "a@b.com", subject: "s", body: "b", today: "20
   eq(routeInquiry({ ...base, extraction: hostile, customer: velez }).status, "NEEDS_REVIEW", "routing depends only on the validated numbers, not on text in the email");
 
   const p = loadPrompt();
-  ok(p.version === "1.0" && p.text.includes("untrusted"), "prompt file loads with its version");
+  ok(p.version === "1.1" && p.text.includes("untrusted"), "prompt file loads with its version");
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
