@@ -1692,7 +1692,8 @@ function inquiryCard(q, opts){
   const open = OPEN_STATUSES.includes(q.status);
   const rb = replyByText(q);
   const fieldRows = INQUIRY_FIELDS.map(([k,label])=>{
-    const x = f[k];
+    // for a known sender, show the matched customer (exact email match), not the name guessed from the signature
+    const x = (k==='customerName' && q.customerName) ? {value:q.customerName, confidence:1, snippet:'Matched by the sender\'s email address'} : f[k];
     if(!x || x.value==null || x.value==='') return `<div><div class="dg-label">${label}</div><div class="dg-value" style="color:var(--text-muted); font-weight:500;">—</div></div>`;
     const low = typeof x.confidence==='number' && x.confidence < LOW_CONFIDENCE;
     return `<div title="${esc(x.snippet?'From the email: “'+x.snippet+'”':'')}" style="${low?'background:var(--warn-soft); border-radius:8px; padding:6px 8px; margin:-6px -8px;':''}">
