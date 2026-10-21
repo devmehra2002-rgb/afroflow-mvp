@@ -1,0 +1,1788 @@
+<title>AfroFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F6F3; --surface:#FFFFFF; --surface-2:#ECEFE9; --surface-3:#E4E7DF;
+  --border:#DFE3D9; --border-strong:#CBD1C4;
+  --text:#131F1B; --text-2:#4E5C55; --text-muted:#87938B;
+  --accent:#0E6E86; --accent-strong:#0A5266; --accent-soft:#E1F0F3; --accent-text:#FFFFFF;
+  --good:#0ca30c; --good-soft:#E4F6E1; --good-text:#0A6E0A;
+  --warn:#B9790E; --warn-soft:#FCEFD9; --warn-text:#8A5A05;
+  --crit:#d03b3b; --crit-soft:#FBE6E4; --crit-text:#A82F2F;
+  --shadow: 0 1px 2px rgba(19,31,27,0.06), 0 8px 24px -12px rgba(19,31,27,0.12);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1210; --surface:#121B18; --surface-2:#17211D; --surface-3:#1D2822;
+    --border:#233530; --border-strong:#2E443C;
+    --text:#EAF1EE; --text-2:#B3C2BB; --text-muted:#728179;
+    --accent:#49AFC7; --accent-strong:#6FC4D9; --accent-soft:#12333A; --accent-text:#06171A;
+    --good:#33C24B; --good-soft:#123B1B; --good-text:#5FE07A;
+    --warn:#F0AC3A; --warn-soft:#3A2C0F; --warn-text:#F5C56D;
+    --crit:#F2685F; --crit-soft:#3A1614; --crit-text:#FF9089;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px -14px rgba(0,0,0,0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1210; --surface:#121B18; --surface-2:#17211D; --surface-3:#1D2822;
+  --border:#233530; --border-strong:#2E443C;
+  --text:#EAF1EE; --text-2:#B3C2BB; --text-muted:#728179;
+  --accent:#49AFC7; --accent-strong:#6FC4D9; --accent-soft:#12333A; --accent-text:#06171A;
+  --good:#33C24B; --good-soft:#123B1B; --good-text:#5FE07A;
+  --warn:#F0AC3A; --warn-soft:#3A2C0F; --warn-text:#F5C56D;
+  --crit:#F2685F; --crit-soft:#3A1614; --crit-text:#FF9089;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px -14px rgba(0,0,0,0.6);
+  color-scheme: dark;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:"Sora", "IBM Plex Sans", sans-serif; font-weight:700; margin:0; text-wrap:balance; letter-spacing:-0.01em;}
+.mono{font-family:"IBM Plex Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums;}
+a{color:inherit;}
+button{font-family:inherit;}
+::selection{background:var(--accent-soft);}
+::-webkit-scrollbar{width:10px; height:10px;}
+::-webkit-scrollbar-thumb{background:var(--border-strong); border-radius:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+.shell{display:flex; min-height:100vh;}
+.sidebar{
+  width:236px; flex:none; background:var(--surface-2); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
+}
+.brand{display:flex; align-items:center; gap:10px; padding:20px 20px 16px;}
+.brand-mark{width:30px; height:30px; border-radius:8px; background:linear-gradient(155deg, var(--accent), var(--accent-strong)); flex:none; position:relative;}
+.brand-mark::after{content:""; position:absolute; inset:8px 6px; border:2px solid rgba(255,255,255,0.85); border-right-color:transparent; border-bottom-color:transparent; border-radius:3px; transform:rotate(45deg);}
+.brand-name{font-family:"Sora",sans-serif; font-weight:800; font-size:16.5px; letter-spacing:-0.01em;}
+.brand-sub{font-size:10.5px; color:var(--text-muted); letter-spacing:.04em; text-transform:uppercase; margin-top:1px;}
+.nav{padding:8px 12px; display:flex; flex-direction:column; gap:1px; overflow-y:auto; flex:1;}
+.nav-group-label{font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); padding:14px 10px 6px;}
+.nav-link{
+  display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:7px;
+  color:var(--text-2); text-decoration:none; font-size:13.3px; font-weight:500; cursor:pointer;
+  border:1px solid transparent;
+}
+.nav-link:hover{background:var(--surface-3); color:var(--text);}
+.nav-link.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
+.nav-link svg{width:16px; height:16px; flex:none;}
+.nav-badge{margin-left:auto; font-size:10.5px; font-weight:700; background:var(--crit-soft); color:var(--crit-text); padding:1px 6px; border-radius:99px;}
+.sidebar-foot{padding:14px 18px; border-top:1px solid var(--border); display:flex; align-items:center; gap:9px;}
+.avatar{width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--accent-text); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:700; flex:none;}
+.foot-name{font-size:12.5px; font-weight:600;}
+.foot-role{font-size:10.8px; color:var(--text-muted);}
+
+.main{flex:1; min-width:0; display:flex; flex-direction:column;}
+.topbar{
+  position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:14px; padding:14px 28px;
+}
+.page-title{font-size:16.5px;}
+.search{
+  flex:1; max-width:360px; display:flex; align-items:center; gap:8px; background:var(--surface);
+  border:1px solid var(--border); border-radius:8px; padding:7px 11px; color:var(--text-muted); font-size:13px;
+}
+.search input{border:none; outline:none; background:none; color:var(--text); font-size:13px; width:100%; font-family:inherit;}
+.search svg{width:15px; height:15px; flex:none;}
+.btn{
+  display:inline-flex; align-items:center; gap:7px; border-radius:7px; border:1px solid var(--border-strong);
+  background:var(--surface); color:var(--text); font-size:13px; font-weight:600; padding:8px 13px; cursor:pointer;
+}
+.btn:hover{background:var(--surface-3);}
+.btn:focus-visible, .nav-link:focus-visible, input:focus-visible, select:focus-visible, .tab:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+.btn-primary{background:var(--accent); border-color:var(--accent); color:var(--accent-text);}
+.btn-primary:hover{background:var(--accent-strong); border-color:var(--accent-strong);}
+.btn svg{width:14px; height:14px;}
+.content{padding:26px 28px 60px; flex:1;}
+
+.grid-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:22px;}
+.stat-tile{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 17px; box-shadow:var(--shadow);}
+.stat-label{font-size:12px; color:var(--text-muted); font-weight:500; display:flex; align-items:center; justify-content:space-between;}
+.stat-value{font-family:"Sora",sans-serif; font-size:26px; font-weight:700; margin-top:7px; letter-spacing:-0.02em;}
+.stat-sub{font-size:11.5px; color:var(--text-muted); margin-top:3px;}
+.stat-dot{width:7px; height:7px; border-radius:50%;}
+
+.section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;}
+.section-head h2{font-size:14.5px;}
+.section-head .link{font-size:12.3px; color:var(--accent); cursor:pointer; font-weight:600;}
+.two-col{display:grid; grid-template-columns:1.3fr 1fr; gap:16px; align-items:start;}
+@media (max-width:980px){.two-col{grid-template-columns:1fr;}}
+
+.card{background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow);}
+.stack{display:flex; flex-direction:column;}
+.divide > * + *{border-top:1px solid var(--border);}
+
+.priority-row{display:flex; gap:12px; padding:13px 15px; align-items:flex-start; cursor:pointer;}
+.priority-row:hover{background:var(--surface-2);}
+.priority-stripe{width:3px; align-self:stretch; border-radius:3px; flex:none;}
+.priority-body{flex:1; min-width:0;}
+.priority-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.order-id{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--text-muted); font-weight:500;}
+.priority-title{font-size:13.3px; font-weight:600; margin-top:2px;}
+.priority-desc{font-size:12.5px; color:var(--text-2); margin-top:2px;}
+.priority-meta{font-size:11.3px; color:var(--text-muted); margin-top:5px; display:flex; gap:10px; flex-wrap:wrap;}
+
+.pill{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; white-space:nowrap;}
+.pill-dot{width:6px; height:6px; border-radius:50%;}
+.pill-good{background:var(--good-soft); color:var(--good-text);}
+.pill-warn{background:var(--warn-soft); color:var(--warn-text);}
+.pill-crit{background:var(--crit-soft); color:var(--crit-text);}
+.pill-neutral{background:var(--surface-3); color:var(--text-2);}
+
+.task-row{display:flex; align-items:center; gap:11px; padding:11px 15px;}
+.task-check{width:17px; height:17px; border-radius:5px; border:1.5px solid var(--border-strong); flex:none; cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--surface);}
+.task-check.done{background:var(--good); border-color:var(--good);}
+.task-check.disabled{cursor:default; opacity:.45;}
+.task-check.done svg{width:11px; height:11px; stroke:white;}
+.task-name{font-size:13px; font-weight:500;}
+.task-name.done{text-decoration:line-through; color:var(--text-muted);}
+.task-name.future{color:var(--text-muted);}
+.task-order{font-size:11.3px; color:var(--text-muted); margin-top:1px;}
+.task-meta{margin-left:auto; display:flex; align-items:center; gap:10px; flex:none;}
+.owner-chip{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-2);}
+.owner-dot{width:19px; height:19px; border-radius:50%; background:var(--surface-3); display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:700; color:var(--text-2);}
+
+.progress-track{height:6px; border-radius:99px; background:var(--surface-3); overflow:hidden;}
+.progress-fill{height:100%; border-radius:99px; background:var(--accent); transition:width .35s ease;}
+
+.pipeline-strip{display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;}
+.pipeline-stage{flex:none; min-width:118px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 13px;}
+.pipeline-count{font-family:"Sora",sans-serif; font-size:22px; font-weight:700;}
+.pipeline-label{font-size:11.2px; color:var(--text-muted); margin-top:2px;}
+
+.toolbar{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+.select{border:1px solid var(--border-strong); background:var(--surface); border-radius:7px; padding:7px 10px; font-size:12.6px; color:var(--text); font-family:inherit;}
+.viewtoggle{display:flex; border:1px solid var(--border-strong); border-radius:7px; overflow:hidden;}
+.viewtoggle button{border:none; background:var(--surface); padding:7px 12px; font-size:12.6px; font-weight:600; color:var(--text-2); cursor:pointer;}
+.viewtoggle button.active{background:var(--accent); color:var(--accent-text);}
+
+table{width:100%; border-collapse:collapse; font-size:12.8px;}
+thead th{text-align:left; font-size:10.8px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); font-weight:600; padding:9px 14px; border-bottom:1px solid var(--border); white-space:nowrap;}
+tbody td{padding:12px 14px; border-bottom:1px solid var(--border); vertical-align:middle;}
+tbody tr{cursor:pointer;}
+tbody tr:hover td{background:var(--surface-2);}
+.table-wrap{overflow-x:auto; border-radius:10px; border:1px solid var(--border); background:var(--surface); box-shadow:var(--shadow);}
+.cell-strong{font-weight:600;}
+.health-bar{width:52px; height:5px; border-radius:99px; background:var(--surface-3); overflow:hidden; display:inline-block; vertical-align:middle; margin-right:7px;}
+.health-fill{height:100%;}
+
+.kanban{display:flex; gap:12px; overflow-x:auto; padding-bottom:12px;}
+.kcol{flex:none; width:250px; display:flex; flex-direction:column;}
+.kcol-head{display:flex; align-items:center; justify-content:space-between; padding:0 4px 9px;}
+.kcol-title{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-2);}
+.kcol-count{font-size:11px; color:var(--text-muted); background:var(--surface-3); padding:1px 7px; border-radius:99px;}
+.kcol-body{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:8px; display:flex; flex-direction:column; gap:8px; min-height:60px; flex:1;}
+.kcard{background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:11px 12px; cursor:pointer; box-shadow:var(--shadow);}
+.kcard:hover{border-color:var(--border-strong);}
+.kcard-top{display:flex; justify-content:space-between; align-items:center;}
+.kcard-cust{font-size:12.8px; font-weight:600; margin-top:6px;}
+.kcard-country{font-size:11.3px; color:var(--text-muted);}
+.kcard-step{font-size:11.5px; color:var(--text-2); margin-top:7px; padding-top:7px; border-top:1px solid var(--border);}
+.kcard-ship{font-size:10.8px; color:var(--text-muted); margin-top:5px;}
+
+.detail-head{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px 22px; box-shadow:var(--shadow); margin-bottom:18px;}
+.detail-top{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;}
+.detail-idrow{display:flex; align-items:center; gap:10px;}
+.detail-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:16px; margin-top:18px; padding-top:16px; border-top:1px solid var(--border);}
+.dg-label{font-size:10.8px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:4px;}
+.dg-value{font-size:13.5px; font-weight:600;}
+.ring{width:56px; height:56px; flex:none;}
+
+.tabs{display:flex; gap:2px; border-bottom:1px solid var(--border); margin-bottom:18px; overflow-x:auto;}
+.tab{border:none; background:none; padding:10px 14px; font-size:12.8px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent); border-bottom-color:var(--accent);}
+
+.stepper{display:flex; flex-direction:column;}
+.step{display:flex; gap:13px;}
+.step-rail{display:flex; flex-direction:column; align-items:center; flex:none;}
+.step-dot{width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none; border:2px solid var(--border-strong); background:var(--surface); font-size:10px;}
+.step-dot.done{background:var(--good); border-color:var(--good); color:#fff;}
+.step-dot.current{border-color:var(--accent); background:var(--accent-soft);}
+.step-dot.blocked{border-color:var(--crit); background:var(--crit-soft);}
+.step-line{width:2px; flex:1; background:var(--border); min-height:22px;}
+.step-line.done{background:var(--good);}
+.step-body{padding-bottom:26px; flex:1; padding-top:1px;}
+.step-title{font-size:13.3px; font-weight:600;}
+.step-status{font-size:11.8px; margin-top:2px;}
+
+.blocker-box{border:1px solid color-mix(in srgb, var(--crit) 35%, var(--border)); background:var(--crit-soft); border-radius:10px; padding:14px 16px; margin-bottom:18px;}
+.blocker-box h4{font-size:12.8px; color:var(--crit-text);}
+.blocker-box p{font-size:12.8px; margin:5px 0 0; color:var(--text);}
+
+.doclist{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px;}
+.doc-item{border:1px solid var(--border); border-radius:9px; padding:12px 13px; background:var(--surface); display:flex; flex-direction:column; gap:6px;}
+.doc-name{font-size:12.8px; font-weight:600;}
+
+.timeline{position:relative; padding-left:22px;}
+.timeline::before{content:""; position:absolute; left:5px; top:5px; bottom:5px; width:2px; background:var(--border);}
+.tl-item{position:relative; padding-bottom:20px;}
+.tl-item::before{content:""; position:absolute; left:-22px; top:3px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--surface); box-shadow:0 0 0 2px var(--accent);}
+.tl-date{font-size:10.8px; color:var(--text-muted); font-family:"IBM Plex Mono",monospace;}
+.tl-text{font-size:13px; margin-top:2px; font-weight:500;}
+
+.modal-back{position:fixed; inset:0; background:rgba(10,15,13,0.5); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;}
+.modal{background:var(--surface); border-radius:12px; border:1px solid var(--border); width:min(560px,100%); max-height:88vh; overflow-y:auto; box-shadow:0 24px 60px -20px rgba(0,0,0,0.4);}
+.modal-head{display:flex; justify-content:space-between; align-items:center; padding:18px 20px; border-bottom:1px solid var(--border);}
+.modal-body{padding:20px;}
+.field{display:flex; flex-direction:column; gap:5px; margin-bottom:14px;}
+.field label{font-size:11.8px; font-weight:600; color:var(--text-2);}
+.field input, .field select{border:1px solid var(--border-strong); border-radius:7px; padding:8px 10px; font-size:13px; background:var(--surface); color:var(--text); font-family:inherit;}
+.field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.field-hint{font-size:11.3px; color:var(--text-muted); margin-top:10px; line-height:1.5;}
+.modal-foot{display:flex; justify-content:flex-end; gap:9px; padding:16px 20px; border-top:1px solid var(--border);}
+.icon-btn{border:none; background:none; cursor:pointer; color:var(--text-muted); padding:4px; display:flex;}
+.icon-btn:hover{color:var(--text);}
+
+.bar-chart{display:flex; flex-direction:column; gap:11px;}
+.bar-row{display:grid; grid-template-columns:118px 1fr 40px; align-items:center; gap:10px; font-size:12.3px;}
+.bar-track{height:10px; background:var(--surface-3); border-radius:4px; overflow:hidden;}
+.bar-fill{height:100%; border-radius:4px;}
+
+.empty{padding:40px 20px; text-align:center; color:var(--text-muted); font-size:13px;}
+.chip-list{display:flex; gap:7px; flex-wrap:wrap;}
+.subtle-card{background:var(--surface-2); border:1px solid var(--border); border-radius:9px; padding:12px 13px;}
+
+.ai-shell{display:grid; grid-template-columns:280px 1fr; gap:18px; align-items:start;}
+@media (max-width:900px){.ai-shell{grid-template-columns:1fr;}}
+.ai-q{width:100%; text-align:left; border:1px solid var(--border); background:var(--surface); border-radius:9px; padding:11px 12px; font-size:12.6px; cursor:pointer; margin-bottom:8px; color:var(--text-2); font-family:inherit;}
+.ai-q:hover{border-color:var(--accent); color:var(--text);}
+.ai-answer{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:22px 24px; box-shadow:var(--shadow); min-height:320px;}
+.ai-input-row{display:flex; gap:8px; margin-top:16px;}
+.ai-input-row input{flex:1; border:1px solid var(--border-strong); border-radius:8px; padding:10px 12px; font-size:13px; background:var(--surface); color:var(--text); font-family:inherit;}
+.reason-item{display:flex; gap:9px; padding:9px 0; border-bottom:1px solid var(--border); font-size:12.8px;}
+.reason-item:last-child{border-bottom:none;}
+.reason-num{font-family:"IBM Plex Mono",monospace; color:var(--accent); font-weight:700; flex:none;}
+
+.calrow{display:flex; align-items:center; gap:13px; padding:11px 15px;}
+.caldate{width:52px; flex:none; text-align:center; border-right:1px solid var(--border); padding-right:12px;}
+.caldate .d{font-family:"Sora",sans-serif; font-size:17px; font-weight:700;}
+.caldate .m{font-size:10px; color:var(--text-muted); text-transform:uppercase;}
+
+@media (max-width:760px){
+  .sidebar{position:fixed; left:-236px; z-index:50; transition:left .2s;}
+  .sidebar.open{left:0;}
+  .content{padding:18px 14px 50px;}
+  .topbar{padding:12px 14px;}
+  .search{display:none;}
+  .detail-grid{grid-template-columns:repeat(2,1fr);}
+}
+[hidden]{display:none !important;}
+
+.toast{
+  position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(10px);
+  background:var(--text); color:var(--bg); font-size:12.8px; font-weight:600;
+  padding:10px 18px; border-radius:8px; box-shadow:var(--shadow);
+  opacity:0; transition:opacity .2s ease, transform .2s ease; z-index:200; pointer-events:none;
+  max-width:min(420px, calc(100vw - 40px));
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+.locked-hint{font-size:11px; color:var(--text-muted);}
+</style>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">AfroFlow</div>
+        <div class="brand-sub">Afro Asiatic Exporters</div>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-foot">
+      <div class="avatar">D</div>
+      <div>
+        <div class="foot-name">Dev</div>
+        <div class="foot-role">Management</div>
+      </div>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <button class="icon-btn" id="menuBtn" style="display:none" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="globalSearch" placeholder="Search orders, customers…" />
+      </div>
+      <button class="btn btn-primary" id="newOrderBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+        New Export Order
+      </button>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div id="modalRoot"></div>
+
+<script>
+const TODAY = new Date('2026-09-08T09:00:00');
+const fmtMoney = (v,c='USD') => (c==='USD'?'$':c+' ') + v.toLocaleString('en-US');
+const fmtDate = (d) => d.toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'});
+const fmtDateShort = (d) => d.toLocaleDateString('en-US',{day:'2-digit',month:'short'});
+const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+const daysBetween = (a,b) => Math.round((b-a)/86400000);
+const initials = (name) => name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+
+const TEAM = {
+  sales:'Priya Mehta', procurement:'Karan Desai', logistics:'Ananya Rao',
+  docs:'Vikram Nair', finance:'Sneha Kapoor'
+};
+
+// The 15-step canonical workflow every export order automatically follows.
+// `role` decides the auto-assigned owner; `external` marks steps that wait on
+// a customer/vendor/bank rather than internal action.
+const STEPS = [
+  {label:'Enquiry Received', stage:0, role:'sales', external:false},
+  {label:'Respond to Enquiry', stage:0, role:'sales', external:false},
+  {label:'Negotiation', stage:1, role:'sales', external:true},
+  {label:'Issue Proforma Invoice', stage:1, role:'sales', external:false},
+  {label:'Payment / LC Confirmation', stage:2, role:'finance', external:true},
+  {label:'Release Purchase Orders', stage:3, role:'procurement', external:false},
+  {label:'Await Supplies', stage:4, role:'procurement', external:true},
+  {label:'Cargo Ready', stage:5, role:'procurement', external:false},
+  {label:'Arrange Container', stage:6, role:'logistics', external:false},
+  {label:'Customs Clearance', stage:6, role:'logistics', external:true},
+  {label:'Shipment & Bill of Lading', stage:6, role:'logistics', external:false},
+  {label:'Prepare Documentation', stage:7, role:'docs', external:false},
+  {label:'Submit Documents to Bank', stage:8, role:'finance', external:false},
+  {label:'Payment Realisation', stage:8, role:'finance', external:true},
+  {label:'eBRC & Closure', stage:9, role:'finance', external:false},
+];
+const STAGES = ['Enquiry','Negotiation','Awaiting Payment / LC','Procurement','Awaiting Supplies','Cargo Ready','Logistics','Documentation','Banking','Completed'];
+
+// Reusable mapping: document type -> the workflow step it auto-completes when
+// uploaded. Add more entries here (and nothing else) to link additional
+// documents to tasks later. More than one document can point at the same
+// step ("Prepare Documentation" needs all three) — that step only completes
+// once every document mapped to it has been uploaded.
+const DOCUMENT_TASK_LINKS = [
+  {docType:'Proforma Invoice', stepLabel:'Issue Proforma Invoice'},
+  {docType:'LC / Deposit Proof', stepLabel:'Payment / LC Confirmation'},
+  {docType:'Purchase Order', stepLabel:'Release Purchase Orders'},
+  {docType:'Bill of Lading', stepLabel:'Shipment & Bill of Lading'},
+  {docType:'Commercial Invoice', stepLabel:'Prepare Documentation'},
+  {docType:'Packing List', stepLabel:'Prepare Documentation'},
+  {docType:'Certificate of Origin', stepLabel:'Prepare Documentation'},
+];
+DOCUMENT_TASK_LINKS.forEach(l=>{ l.stepIndex = STEPS.findIndex(s=>s.label===l.stepLabel); });
+function docTypesForStep(stepIndex){ return DOCUMENT_TASK_LINKS.filter(l=>l.stepIndex===stepIndex).map(l=>l.docType); }
+
+// The AI Document Scanner (Feature 4) only runs against these 5 document
+// types — the rest keep the simple metadata-only upload behavior above.
+// Scanning needs the real file (to read and compare it), real storage, and a
+// database for scan/discrepancy history, none of which the rest of this app
+// uses — see /api/scan-documents and /api/scan-documents/:id/scan.
+const SCANNABLE_DOC_TYPES = ['Proforma Invoice','Purchase Order','Commercial Invoice','Packing List','Bill of Lading'];
+
+function healthCat(h){ if(h>=80) return {key:'good',label:'On Track'}; if(h>=50) return {key:'warn',label:'Attention Required'}; return {key:'crit',label:'Delayed / Blocked'}; }
+
+// ---------- THE ONE SEED ORDER ----------
+// Everything else in the app is created by the user via "New Export Order".
+// This single fully-completed order is kept only as a worked example of what
+// a closed order looks like end to end.
+const RAW_ORDERS = [
+  {id:'AA-2026-020', customer:'Karachi Chem Traders', country:'Pakistan', product:'Light Soda Ash', qty:'24 MT', value:41000, terms:'LC', ship:'2026-08-20', createdAt:'2026-06-25', inquiryDate:'2026-06-25', doneCount:15},
+];
+
+// ---------- AUTOMATION CORE ----------
+// A due date for every step is auto-scheduled the moment an order is created,
+// spread evenly between the creation date and the promised shipment date.
+function computeStepDue(createdAt, shipDate){
+  const span = Math.max(daysBetween(createdAt, shipDate), 14);
+  const interval = span/14;
+  const due = [new Date(createdAt)];
+  for(let i=1;i<STEPS.length;i++) due.push(addDays(createdAt, Math.round(i*interval)));
+  return due;
+}
+
+function buildOrder(cfg){
+  const shipDate = new Date(cfg.ship);
+  // createdAt is an automatic, non-editable system timestamp of when the
+  // record was made. inquiryDate is the (editable) date the enquiry actually
+  // came in — it's what drives the auto-scheduled step due-dates, since
+  // inquiries are sometimes logged a day or two late.
+  const createdAt = cfg.createdAt ? new Date(cfg.createdAt) : new Date(TODAY);
+  const inquiryDate = cfg.inquiryDate ? new Date(cfg.inquiryDate) : createdAt;
+  const stepDue = computeStepDue(inquiryDate, shipDate);
+  // "Enquiry Received" completes itself the instant an order is created.
+  const doneCount = cfg.doneCount!=null ? cfg.doneCount : 1;
+  return {
+    id:cfg.id, customer:cfg.customer, country:cfg.country, product:cfg.product,
+    qty:cfg.qty, containerType:cfg.containerType, containerCount:cfg.containerCount,
+    value:cfg.value, terms:cfg.terms, shipDate, createdAt, inquiryDate, stepDue, doneCount,
+    // Which step indexes were completed via a linked document upload, rather
+    // than a manual checkbox click — drives the "via document" badge.
+    docSteps: []
+  };
+}
+
+// "3 × 40 ft containers" for new-style orders; the old free-text value
+// ("24 MT") is preserved and shown as-is for orders created before this
+// field existed — nothing is silently dropped or migrated.
+function formatQty(o){
+  if(o.containerType && o.containerCount){
+    const label = o.containerType==='40ft' ? '40 ft' : '20 ft';
+    return `${o.containerCount} × ${label} container${o.containerCount>1?'s':''}`;
+  }
+  return o.qty || '—';
+}
+
+// Everything about an order's status — stage, health, next action, blocker,
+// progress bar, kanban column — is computed live from doneCount + dates.
+// Nothing here is stored; ticking a task off is the only input.
+function getDerived(o){
+  const doneCount = o.doneCount;
+  const isComplete = doneCount>=STEPS.length;
+  const activeIdx = Math.min(doneCount, STEPS.length-1);
+  const activeStep = STEPS[activeIdx];
+  const dueDate = o.stepDue[activeIdx];
+  const overdue = !isComplete && TODAY > dueDate;
+  const stage = isComplete ? 9 : activeStep.stage;
+  const owner = TEAM[activeStep.role];
+  const next = isComplete ? 'Order closed and archived.' : (activeStep.label + (activeStep.external ? ' — awaiting external party' : ''));
+
+  let health = 100;
+  if(!isComplete){
+    if(overdue) health -= Math.min(45, 20 + daysBetween(dueDate,TODAY)*4);
+    const daysToShip = daysBetween(TODAY, o.shipDate);
+    const stepsRemaining = STEPS.length - doneCount;
+    if(daysToShip < stepsRemaining) health -= Math.min(35, (stepsRemaining-daysToShip)*5);
+    if(daysToShip < 0) health -= 25;
+  }
+  health = Math.max(5, Math.min(100, Math.round(health)));
+  const cat = healthCat(health);
+  const blocker = overdue ? `${activeStep.label} is overdue — was due ${fmtDate(dueDate)}. Every step after it is on hold until this clears.` : null;
+  const pct = Math.round((doneCount/STEPS.length)*100);
+
+  const steps = STEPS.map((s,i)=>{
+    const status = i<doneCount ? 'completed' : (i===activeIdx && !isComplete) ? (overdue?'overdue':'active') : 'notstarted';
+    const viaDocument = o.docSteps && o.docSteps.includes(i);
+    return {...s, i, status, due:o.stepDue[i], viaDocument};
+  });
+
+  // Every document in the app is a task-linked upload slot. A document can
+  // only be uploaded for a step that has actually been reached — i.e. every
+  // step before it is already done — matching how tasks are completed
+  // everywhere else in the app. When several documents map to the same step
+  // ("Prepare Documentation" needs all three), the step only completes once
+  // every one of them has been uploaded — uploading just one of the group
+  // logs that document but doesn't check off the task by itself.
+  const uploadedDocs = getUploadedDocuments(o.id);
+  const linkedDocs = DOCUMENT_TASK_LINKS.map(link=>{
+    const stepIndex = link.stepIndex;
+    const groupDocTypes = docTypesForStep(stepIndex);
+    const completed = stepIndex < doneCount;
+    const locked = stepIndex > doneCount;
+    const uploaded = uploadedDocs.find(u=>u.docType===link.docType) || null;
+    const viaDocument = !!(o.docSteps && o.docSteps.includes(stepIndex));
+    const groupUploadedCount = groupDocTypes.filter(dt=>uploadedDocs.some(u=>u.docType===dt)).length;
+    const waitingOn = groupDocTypes.filter(dt=>dt!==link.docType && !uploadedDocs.some(u=>u.docType===dt));
+    return {...link, completed, locked, uploaded, viaDocument, groupSize:groupDocTypes.length, groupUploadedCount, waitingOn};
+  });
+
+  return {doneCount, isComplete, activeIdx, activeStep, dueDate, overdue, stage, owner, next, health, cat, blocker, pct, steps, linkedDocs};
+}
+
+function stepStatusText(s){
+  if(s.status==='completed') return 'Completed';
+  if(s.status==='overdue') return `Overdue — was due ${fmtDateShort(s.due)}`;
+  if(s.status==='active') return s.external ? 'Awaiting External Party' : 'In Progress';
+  return 'Not started';
+}
+
+let ORDERS = RAW_ORDERS.map(buildOrder);
+
+try{
+  const saved = JSON.parse(localStorage.getItem('afroflow_new_orders')||'[]');
+  saved.forEach(s=>ORDERS.unshift(buildOrder(s)));
+}catch(e){}
+try{
+  const prog = JSON.parse(localStorage.getItem('afroflow_progress')||'{}');
+  ORDERS.forEach(o=>{
+    const p = prog[o.id];
+    if(p==null) return;
+    // Older saved progress was just a bare number — keep loading it fine,
+    // it simply predates document-linked completion.
+    if(typeof p === 'number'){ o.doneCount = p; }
+    else { o.doneCount = p.doneCount; o.docSteps = p.docSteps || []; }
+  });
+}catch(e){}
+
+function saveProgress(orderId, doneCount, docSteps){
+  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_progress')||'{}'); }catch(e){}
+  m[orderId] = {doneCount, docSteps: docSteps||[]};
+  localStorage.setItem('afroflow_progress', JSON.stringify(m));
+}
+
+// ---------- LINKED DOCUMENTS (Feature 3) ----------
+// Metadata only — name, type, upload date. There's no backend here, so we
+// can't actually store file bytes anywhere durable or shared; this records
+// that the document was logged, not the file itself.
+function getUploadedDocuments(orderId){
+  try{
+    const m = JSON.parse(localStorage.getItem('afroflow_documents')||'{}');
+    return m[orderId] || [];
+  }catch(e){ return []; }
+}
+function saveUploadedDocuments(orderId, docs){
+  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_documents')||'{}'); }catch(e){}
+  m[orderId] = docs;
+  localStorage.setItem('afroflow_documents', JSON.stringify(m));
+}
+
+function showToast(msg){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=> el.classList.add('show'));
+  setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>el.remove(), 250); }, 3400);
+}
+
+// ---------- AI DOCUMENT SCANNER (Feature 4) ----------
+// Everything below talks to the real backend (/api/scan-documents, ...)
+// added specifically for this feature. SCAN_CACHE holds the last-fetched
+// server state per order so the (synchronous) render functions above always
+// have something to read, even while a fetch is in flight.
+const SCAN_CACHE = {};
+
+function getScanDocId(orderId, docType){
+  try{ const m = JSON.parse(localStorage.getItem('afroflow_scan_doc_ids')||'{}'); return (m[orderId]||{})[docType] || null; }
+  catch(e){ return null; }
+}
+function setScanDocId(orderId, docType, id){
+  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_scan_doc_ids')||'{}'); }catch(e){}
+  m[orderId] = m[orderId] || {};
+  m[orderId][docType] = id;
+  localStorage.setItem('afroflow_scan_doc_ids', JSON.stringify(m));
+}
+
+// Steps currently reopened/blocked because their last scan found unresolved
+// Critical discrepancies — separate from docSteps, which just tracks
+// "completed via document upload".
+function getCriticalBlocks(orderId){
+  try{ const m = JSON.parse(localStorage.getItem('afroflow_critical_blocks')||'{}'); return m[orderId] || []; }
+  catch(e){ return []; }
+}
+function setCriticalBlocks(orderId, arr){
+  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_critical_blocks')||'{}'); }catch(e){}
+  m[orderId] = arr;
+  localStorage.setItem('afroflow_critical_blocks', JSON.stringify(m));
+}
+
+function scanCacheEntry(orderId, docType){
+  const docId = getScanDocId(orderId, docType);
+  if(!docId) return null;
+  return (SCAN_CACHE[orderId]||[]).find(d=>d.id===docId) || null;
+}
+
+function scanStatusBadge(entry){
+  if(!entry) return `<span class="pill pill-neutral">Not scanned</span>`;
+  if(entry._scanning) return `<span class="pill pill-neutral">Scanning…</span>`;
+  const scan = entry.latestScan;
+  if(!scan) return `<span class="pill pill-neutral">Not scanned</span>`;
+  if(scan.status==='FAILED') return `<span class="pill pill-crit">Scan failed</span>`;
+  if(scan.status==='CRITICAL') return `<span class="pill pill-crit">Critical issues</span>`;
+  if(scan.status==='WARNINGS') return `<span class="pill pill-warn">Warnings</span>`;
+  return `<span class="pill pill-good">Clean</span>`;
+}
+
+const SEVERITY_ORDER = {CRITICAL:0, WARNING:1, INFO:2};
+function renderDiscrepancyPanel(entry, orderId, docType){
+  if(!entry || entry._scanning) return '';
+  const scan = entry.latestScan;
+  if(!scan) return '';
+  if(scan.status==='FAILED') return `<div class="locked-hint" style="color:var(--crit-text); margin-top:6px;">Scan failed: ${scan.errorMessage||'unknown error'}</div>`;
+  const discs = scan.discrepancies || [];
+  if(!discs.length) return `<div class="locked-hint" style="color:var(--good-text); margin-top:6px;">No discrepancies found.</div>`;
+  const sorted = [...discs].sort((a,b)=>SEVERITY_ORDER[a.severity]-SEVERITY_ORDER[b.severity]);
+  return `<div class="subtle-card" style="margin-top:8px;">
+    ${sorted.map(disc=>{
+      const sevClass = disc.severity==='CRITICAL'?'pill-crit':disc.severity==='WARNING'?'pill-warn':'pill-neutral';
+      const resolved = disc.status!=='OPEN';
+      return `<div style="padding:8px 0; border-top:1px solid var(--border);">
+        <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
+          <span class="pill ${sevClass}">${disc.severity}</span>
+          <span style="font-size:11.5px; font-weight:600; flex:1;">${disc.field}</span>
+          ${resolved?`<span class="pill pill-neutral">${disc.status}</span>`:''}
+        </div>
+        <div style="font-size:11.3px; color:var(--text-2); margin-top:4px;">
+          Found: <strong>${disc.foundValue ?? '—'}</strong> (${disc.foundSource}) · Expected: <strong>${disc.expectedValue ?? '—'}</strong> (${disc.expectedSource})
+        </div>
+        ${!resolved?`<div style="margin-top:6px; display:flex; gap:6px;">
+          <button class="btn" style="padding:4px 9px; font-size:11px;" data-review-disc="${disc.id}:RESOLVED:${orderId}:${docType}">Resolved</button>
+          <button class="btn" style="padding:4px 9px; font-size:11px;" data-review-disc="${disc.id}:IGNORED:${orderId}:${docType}">Ignore</button>
+        </div>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function refreshScanCache(orderId){
+  try{
+    const res = await fetch(`/api/scan-documents?orderId=${encodeURIComponent(orderId)}`);
+    if(res.ok) SCAN_CACHE[orderId] = await res.json();
+  }catch(e){ /* keep whatever was cached before */ }
+  route();
+}
+
+function buildOrderRecordForScan(o){
+  return {
+    id: o.id,
+    customer: o.customer,
+    product: o.product,
+    containerType: o.containerType || null,
+    containerCount: o.containerCount || null,
+    value: o.value,
+    currency: 'USD',
+    shipDate: o.shipDate ? o.shipDate.toISOString().slice(0,10) : null,
+  };
+}
+
+async function uploadScannableDocument(orderId, docType, file){
+  const o = ORDERS.find(x=>x.id===orderId);
+  const link = DOCUMENT_TASK_LINKS.find(l=>l.docType===docType);
+  if(!o || !link || !file) return;
+  const stepIndex = link.stepIndex;
+  if(stepIndex > o.doneCount) return; // guarded in the UI too; safety no-op
+
+  showToast(`Uploading ${docType}…`);
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('orderId', orderId);
+  fd.append('docType', docType);
+
+  let doc;
+  try{
+    const res = await fetch('/api/scan-documents', { method:'POST', body: fd });
+    const body = await res.json().catch(()=>({}));
+    if(!res.ok){ showToast(`Upload failed: ${body.error || res.statusText}`); return; }
+    doc = body;
+  }catch(e){ showToast('Upload failed — network error.'); return; }
+
+  setScanDocId(orderId, docType, doc.id);
+
+  // Same bookkeeping the metadata-only path uses, so the existing
+  // task/workflow sync (Feature 3) works identically either way.
+  const docs = getUploadedDocuments(orderId).filter(d=>d.docType!==docType);
+  docs.push({docType, fileName: file.name, uploadedAt: new Date().toISOString()});
+  saveUploadedDocuments(orderId, docs);
+
+  const groupDocTypes = docTypesForStep(stepIndex);
+  const groupComplete = groupDocTypes.every(dt=>docs.some(d=>d.docType===dt));
+  let toast = `${docType} uploaded.`;
+  if(!groupComplete){
+    const stillNeeded = groupDocTypes.filter(dt=>!docs.some(d=>d.docType===dt));
+    toast = `${docType} uploaded — still need ${stillNeeded.join(', ')} to complete "${link.stepLabel}".`;
+  } else if(stepIndex === o.doneCount){
+    o.doneCount++;
+    if(!o.docSteps.includes(stepIndex)) o.docSteps.push(stepIndex);
+    toast = `${docType} uploaded — "${link.stepLabel}" marked complete. Click Scan to check it for discrepancies.`;
+  }
+  saveProgress(orderId, o.doneCount, o.docSteps);
+  showToast(toast);
+  await refreshScanCache(orderId);
+}
+
+function blockStepForCriticalIssues(orderId, docType){
+  const o = ORDERS.find(x=>x.id===orderId);
+  const link = DOCUMENT_TASK_LINKS.find(l=>l.docType===docType);
+  if(!o || !link) return;
+  const stepIndex = link.stepIndex;
+  // If this step had already auto-completed on upload, reopen it — per your
+  // call, Critical issues block completion until they're resolved.
+  if(o.docSteps.includes(stepIndex) && stepIndex === o.doneCount-1){
+    o.doneCount--;
+    o.docSteps = o.docSteps.filter(i=>i!==stepIndex);
+    saveProgress(orderId, o.doneCount, o.docSteps);
+  }
+  const blocks = getCriticalBlocks(orderId);
+  if(!blocks.includes(stepIndex)) blocks.push(stepIndex);
+  setCriticalBlocks(orderId, blocks);
+}
+
+function maybeUnblockStep(orderId, docType){
+  const o = ORDERS.find(x=>x.id===orderId);
+  const link = DOCUMENT_TASK_LINKS.find(l=>l.docType===docType);
+  if(!o || !link) return;
+  const stepIndex = link.stepIndex;
+  const blocks = getCriticalBlocks(orderId);
+  if(!blocks.includes(stepIndex)) return;
+
+  const entry = scanCacheEntry(orderId, docType);
+  if(entry && entry.openCritical > 0) return; // still has unresolved critical issues
+
+  setCriticalBlocks(orderId, blocks.filter(i=>i!==stepIndex));
+
+  const groupDocTypes = docTypesForStep(stepIndex);
+  const uploadedDocs = getUploadedDocuments(orderId);
+  const groupComplete = groupDocTypes.every(dt=>uploadedDocs.some(d=>d.docType===dt));
+  const stillBlocked = getCriticalBlocks(orderId).includes(stepIndex);
+  if(groupComplete && !stillBlocked && stepIndex === o.doneCount){
+    o.doneCount++;
+    if(!o.docSteps.includes(stepIndex)) o.docSteps.push(stepIndex);
+    saveProgress(orderId, o.doneCount, o.docSteps);
+    showToast(`All critical issues resolved — "${link.stepLabel}" marked complete.`);
+  }
+}
+
+async function runScan(orderId, docType){
+  const docId = getScanDocId(orderId, docType);
+  if(!docId){ showToast('Upload the document before scanning.'); return; }
+  const o = ORDERS.find(x=>x.id===orderId);
+
+  SCAN_CACHE[orderId] = (SCAN_CACHE[orderId]||[]).map(d=> d.id===docId ? {...d, _scanning:true} : d);
+  route();
+
+  let scan;
+  try{
+    const res = await fetch(`/api/scan-documents/${docId}/scan`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ order: buildOrderRecordForScan(o) }),
+    });
+    scan = await res.json().catch(()=>({}));
+    if(!res.ok){ showToast(`Scan failed: ${scan.error || res.statusText}`); await refreshScanCache(orderId); return; }
+  }catch(e){ showToast('Scan failed — network error.'); await refreshScanCache(orderId); return; }
+
+  if(scan.status === 'FAILED') showToast(`Scan failed: ${scan.errorMessage || 'unknown error'}.`);
+  else if(scan.status === 'CRITICAL'){ showToast(`Scan found Critical issues in ${docType}.`); blockStepForCriticalIssues(orderId, docType); }
+  else if(scan.status === 'WARNINGS') showToast(`Scan found Warnings in ${docType}.`);
+  else showToast(`${docType} scanned clean — no discrepancies found.`);
+
+  await refreshScanCache(orderId);
+}
+
+async function scanAllForOrder(orderId){
+  const entries = SCANNABLE_DOC_TYPES.map(dt=>({dt, id:getScanDocId(orderId, dt)})).filter(x=>x.id);
+  if(!entries.length){ showToast('No scannable documents uploaded yet.'); return; }
+  for(const {dt} of entries) await runScan(orderId, dt);
+}
+
+async function reviewDiscrepancy(discrepancyId, status, orderId, docType){
+  try{
+    const res = await fetch(`/api/scan-discrepancies/${discrepancyId}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status }),
+    });
+    if(!res.ok){ showToast('Could not update discrepancy.'); return; }
+  }catch(e){ showToast('Could not update discrepancy — network error.'); return; }
+  await refreshScanCache(orderId);
+  maybeUnblockStep(orderId, docType);
+}
+
+// Uploading is atomic (document record + task completion + workflow all
+// update together, in one synchronous pass) and idempotent (re-uploading the
+// same document type replaces its record instead of duplicating, and won't
+// double-advance a step that's already done).
+function uploadLinkedDocument(orderId, docType, fileName){
+  const o = ORDERS.find(x=>x.id===orderId);
+  const link = DOCUMENT_TASK_LINKS.find(l=>l.docType===docType);
+  if(!o || !link) return;
+  const stepIndex = link.stepIndex;
+  if(stepIndex > o.doneCount) return; // guarded in the UI too; safety no-op
+
+  const docs = getUploadedDocuments(orderId).filter(d=>d.docType!==docType);
+  docs.push({docType, fileName, uploadedAt: new Date().toISOString()});
+  saveUploadedDocuments(orderId, docs);
+
+  // A step only completes once every document mapped to it is uploaded —
+  // for a single-document step that's just this one.
+  const groupDocTypes = docTypesForStep(stepIndex);
+  const groupComplete = groupDocTypes.every(dt=>docs.some(d=>d.docType===dt));
+
+  let toast = `${docType} logged.`;
+  if(!groupComplete){
+    const stillNeeded = groupDocTypes.filter(dt=>!docs.some(d=>d.docType===dt));
+    toast = `${docType} logged — still need ${stillNeeded.join(', ')} to complete "${link.stepLabel}".`;
+  } else if(stepIndex === o.doneCount){
+    o.doneCount++;
+    if(!o.docSteps.includes(stepIndex)) o.docSteps.push(stepIndex);
+    toast = `${docType} uploaded — "${link.stepLabel}" marked complete.`;
+  }
+  saveProgress(orderId, o.doneCount, o.docSteps);
+  showToast(toast);
+  route();
+}
+
+function deleteLinkedDocument(orderId, docType){
+  const o = ORDERS.find(x=>x.id===orderId);
+  const link = DOCUMENT_TASK_LINKS.find(l=>l.docType===docType);
+  if(!o || !link) return;
+  const stepIndex = link.stepIndex;
+  const docs = getUploadedDocuments(orderId).filter(d=>d.docType!==docType);
+  saveUploadedDocuments(orderId, docs);
+
+  // Only revert the task if this is still the most recently completed step —
+  // if later steps have already progressed, rolling all the way back would
+  // silently undo unrelated work, so we just remove the document record.
+  // Removing any one document from a multi-document group breaks the group's
+  // "all uploaded" requirement, so it reverts the shared task too.
+  const wasDocCompleted = o.docSteps.includes(stepIndex);
+  if(wasDocCompleted && stepIndex === o.doneCount-1){
+    o.doneCount--;
+    o.docSteps = o.docSteps.filter(i=>i!==stepIndex);
+    saveProgress(orderId, o.doneCount, o.docSteps);
+    showToast(`${docType} removed — "${link.stepLabel}" reverted to not done.`);
+  } else {
+    o.docSteps = o.docSteps.filter(i=>i!==stepIndex);
+    saveProgress(orderId, o.doneCount, o.docSteps);
+    showToast(`${docType} removed. Later steps are already complete, so the task stays marked done.`);
+  }
+  route();
+}
+// A worked example so the MarineTraffic deep-link can be seen without typing
+// anything in — a real, currently-trackable vessel (IMO verified against
+// marinetraffic.com), attached only to the one seed example order.
+const SEED_VESSELS = { 'AA-2026-020': {name:'Ever Given', imo:'9811000'} };
+function getVessel(orderId){
+  try{
+    const m = JSON.parse(localStorage.getItem('afroflow_vessels')||'{}');
+    if(Object.prototype.hasOwnProperty.call(m, orderId)) return m[orderId];
+  }catch(e){}
+  return SEED_VESSELS[orderId] || null;
+}
+function saveVessel(orderId, vessel){
+  let m={}; try{ m=JSON.parse(localStorage.getItem('afroflow_vessels')||'{}'); }catch(e){}
+  m[orderId]=vessel;
+  localStorage.setItem('afroflow_vessels', JSON.stringify(m));
+}
+function marineTrafficUrl(imo){ return `https://www.marinetraffic.com/en/ais/details/ships/imo:${encodeURIComponent(imo)}`; }
+function nextOrderId(){
+  const seq = Number(localStorage.getItem('afroflow_seq')||'0') + 1;
+  localStorage.setItem('afroflow_seq', String(seq));
+  return `AA-2026-${String(seq).padStart(3,'0')}`;
+}
+
+// One live, actionable task per open order — the step currently active.
+// Ticking it off is what advances that order's workflow bar.
+function actionTasks(){
+  return ORDERS.map(o=>({o,d:getDerived(o)})).filter(x=>!x.d.isComplete).map(x=>({
+    name:x.d.activeStep.label, orderId:x.o.id, orderCustomer:x.o.customer,
+    status: x.d.overdue?'overdue': (x.d.activeStep.external?'awaiting':'inprogress'),
+    due:x.d.dueDate, owner:x.d.owner
+  }));
+}
+
+// ---------- ICONS ----------
+const ICONS = {
+  dashboard:'<path d="M3 13h8V3H3v10zm10 8h8V3h-8v18zM3 21h8v-6H3v6z"/>',
+  orders:'<path d="M4 4h16v4H4zM4 10h10v10H4zM17 10h3v4h-3zM17 17h3v3h-3z"/>',
+  tasks:'<path d="m4 12 5 5L20 6"/>',
+  suppliers:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M15 9h.01M15 13h.01M9 21v-4h6v4"/>',
+  customers:'<circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6M16 8a3 3 0 1 1 0 6M22 20c0-2.6-2.1-4.8-5-5.6"/>',
+  documents:'<path d="M14 3v5h5M6 3h8l5 5v13H6z"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+  analytics:'<path d="M4 20V10M11 20V4M18 20v-7"/>',
+  ai:'<path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/><circle cx="12" cy="12" r="3"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.6 1z"/>',
+};
+function icon(name){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`; }
+
+const NAV = [
+  {group:'Overview', items:[['dashboard','Dashboard','#/dashboard']]},
+  {group:'Operations', items:[['orders','Export Orders','#/orders'],['tasks','Tasks','#/tasks'],['suppliers','Suppliers','#/suppliers'],['customers','Customers','#/customers'],['documents','Documents','#/documents'],['calendar','Calendar','#/calendar']]},
+  {group:'Intelligence', items:[['analytics','Analytics','#/analytics'],['ai','AI Assistant','#/ai']]},
+  {group:'', items:[['settings','Settings','#/settings']]},
+];
+
+function renderNav(){
+  const hash = location.hash || '#/dashboard';
+  const overdue = actionTasks().filter(t=>t.status==='overdue').length;
+  document.getElementById('nav').innerHTML = NAV.map(g=>`
+    ${g.group?`<div class="nav-group-label">${g.group}</div>`:''}
+    ${g.items.map(([ic,label,href])=>{
+      const active = hash===href || (href==='#/orders' && hash.startsWith('#/orders'));
+      const badge = (label==='Tasks' && overdue>0) ? `<span class="nav-badge">${overdue}</span>` : '';
+      return `<a class="nav-link ${active?'active':''}" href="${href}">${icon(ic)}<span>${label}</span>${badge}</a>`;
+    }).join('')}
+  `).join('');
+}
+
+// ---------- SHARED WIDGETS ----------
+function pill(cat){
+  const map={good:['pill-good','On Track'],warn:['pill-warn','Attention'],crit:['pill-crit','At Risk']};
+  const [cls,label] = map[cat.key] || map.good;
+  return `<span class="pill ${cls}"><span class="pill-dot" style="background:currentColor"></span>${cat.label||label}</span>`;
+}
+function statusPill(status){
+  const map = {
+    done:['pill-good','Completed'], completed:['pill-good','Completed'],
+    inprogress:['pill-neutral','In Progress'],
+    awaiting:['pill-warn','Awaiting External'], overdue:['pill-crit','Overdue'],
+    notstarted:['pill-neutral','Not Started'],
+  };
+  const [cls,label] = map[status]||map.notstarted;
+  return `<span class="pill ${cls}">${label}</span>`;
+}
+function healthRing(h){
+  const cat = healthCat(h);
+  const color = `var(--${cat.key==='good'?'good':cat.key==='warn'?'warn':'crit'})`;
+  const r=24, c=2*Math.PI*r, off = c*(1-h/100);
+  return `<svg class="ring" viewBox="0 0 56 56">
+    <circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="5"/>
+    <circle cx="28" cy="28" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 28 28)"/>
+    <text x="28" y="31" text-anchor="middle" font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="var(--text)">${h}</text>
+  </svg>`;
+}
+function ownerChip(name){
+  return `<span class="owner-chip"><span class="owner-dot">${initials(name)}</span>${name}</span>`;
+}
+
+// ---------- ROUTER ----------
+function route(){
+  renderNav();
+  const hash = location.hash || '#/dashboard';
+  const parts = hash.replace('#/','').split('/');
+  const page = parts[0];
+  const el = document.getElementById('content');
+  const titles = {dashboard:'Dashboard', orders: parts[1]?'Order Detail':'Export Orders', tasks:'Tasks', suppliers:'Suppliers', customers:'Customers', documents:'Documents', calendar:'Calendar', analytics:'Analytics', ai:'AI Assistant', settings:'Settings'};
+  document.getElementById('pageTitle').textContent = titles[page] || 'AfroFlow';
+
+  if(page==='dashboard') el.innerHTML = viewDashboard();
+  else if(page==='orders' && parts[1]) el.innerHTML = viewOrderDetail(parts[1]);
+  else if(page==='orders') el.innerHTML = viewOrders();
+  else if(page==='tasks') el.innerHTML = viewTasks();
+  else if(page==='suppliers') el.innerHTML = viewSuppliers();
+  else if(page==='customers') el.innerHTML = viewCustomers();
+  else if(page==='documents') el.innerHTML = viewDocuments();
+  else if(page==='calendar') el.innerHTML = viewCalendar();
+  else if(page==='analytics') el.innerHTML = viewAnalytics();
+  else if(page==='ai') el.innerHTML = viewAI();
+  else if(page==='settings') el.innerHTML = viewSettings();
+  else el.innerHTML = viewDashboard();
+
+  window.scrollTo(0,0);
+  afterRender(page, parts[1]);
+}
+
+// ---------- DASHBOARD ----------
+function viewDashboard(){
+  const rows = ORDERS.map(o=>({o,d:getDerived(o)}));
+  const active = rows.filter(x=>!x.d.isComplete);
+  const onTrack = active.filter(x=>x.d.cat.key==='good').length;
+  const attention = active.filter(x=>x.d.cat.key==='warn').length;
+  const atRisk = active.filter(x=>x.d.cat.key==='crit').length;
+  const pendingValue = active.reduce((s,x)=>s+x.o.value,0);
+  const shipWeek = active.filter(x=>{ const dd=daysBetween(TODAY,x.o.shipDate); return dd>=0 && dd<=7; }).length;
+
+  const urgent = active.filter(x=>x.d.cat.key==='crit').sort((a,b)=>a.d.health-b.d.health).slice(0,4);
+  const todayTasks = actionTasks().sort((a,b)=>a.due-b.due).slice(0,6);
+  const stageCounts = STAGES.map((s,i)=> active.filter(x=>x.d.stage===i).length);
+
+  return `
+  <div style="margin-bottom:22px;">
+    <h2 style="font-size:20px;">Good morning, Dev</h2>
+    <div style="color:var(--text-muted); font-size:13px; margin-top:3px;">Afro Asiatic Export Operations — ${TODAY.toLocaleDateString('en-US',{weekday:'long', day:'numeric', month:'long'})}</div>
+  </div>
+  <div class="grid-stats">
+    <div class="stat-tile"><div class="stat-label">Active Orders<span class="stat-dot" style="background:var(--accent)"></span></div><div class="stat-value">${active.length}</div><div class="stat-sub">${onTrack} on track</div></div>
+    <div class="stat-tile"><div class="stat-label">Orders At Risk<span class="stat-dot" style="background:var(--crit)"></span></div><div class="stat-value" style="color:var(--crit)">${atRisk}</div><div class="stat-sub">${attention} need attention</div></div>
+    <div class="stat-tile"><div class="stat-label">Tasks Due Today<span class="stat-dot" style="background:var(--warn)"></span></div><div class="stat-value">${todayTasks.length}</div><div class="stat-sub">${actionTasks().filter(t=>t.status==='overdue').length} overdue</div></div>
+    <div class="stat-tile"><div class="stat-label">Pending Order Value<span class="stat-dot" style="background:var(--good)"></span></div><div class="stat-value">$${Math.round(pendingValue/1000)}k</div><div class="stat-sub">across ${active.length} open orders</div></div>
+    <div class="stat-tile"><div class="stat-label">Shipments This Week<span class="stat-dot" style="background:var(--accent)"></span></div><div class="stat-value">${shipWeek}</div><div class="stat-sub">next 7 days</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="stack" style="gap:20px;">
+      <div>
+        <div class="section-head"><h2>Orders Requiring Attention</h2><span class="link" data-nav="#/orders">View all orders →</span></div>
+        <div class="card divide">
+          ${urgent.length? urgent.map(x=>`
+            <div class="priority-row" data-nav="#/orders/${x.o.id}">
+              <div class="priority-stripe" style="background:var(--crit)"></div>
+              <div class="priority-body">
+                <div class="priority-top"><span class="order-id">${x.o.id}</span>${pill(x.d.cat)}</div>
+                <div class="priority-title">${x.o.customer} · ${x.o.country}</div>
+                <div class="priority-desc">${x.d.blocker || x.d.next}</div>
+                <div class="priority-meta"><span>Shipment in ${daysBetween(TODAY,x.o.shipDate)}d</span><span>·</span><span>Owner: ${x.d.owner}</span></div>
+              </div>
+              <button class="btn" style="flex:none;" data-nav="#/orders/${x.o.id}">Review</button>
+            </div>`).join('') : `<div class="empty">No urgent orders right now.</div>`}
+        </div>
+      </div>
+      <div>
+        <div class="section-head"><h2>Export Pipeline</h2><span class="link" data-nav="#/orders">Kanban view →</span></div>
+        <div class="pipeline-strip">
+          ${STAGES.map((s,i)=>`<div class="pipeline-stage"><div class="pipeline-count">${stageCounts[i]}</div><div class="pipeline-label">${s}</div></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="section-head"><h2>Today's Tasks</h2><span class="link" data-nav="#/tasks">All tasks →</span></div>
+      <div class="card divide">
+        ${todayTasks.length? todayTasks.map(t=>`
+          <div class="task-row">
+            <div class="task-check" data-advance="${t.orderId}" title="Mark this step complete"></div>
+            <div style="min-width:0;">
+              <div class="task-name">${t.name}</div>
+              <div class="task-order">${t.orderId} · ${t.orderCustomer}</div>
+            </div>
+            <div class="task-meta">${statusPill(t.status)}</div>
+          </div>`).join('') : `<div class="empty">Nothing due today.</div>`}
+      </div>
+      ${!ORDERS.some(o=>getDerived(o).isComplete===false) ? '' : ''}
+    </div>
+  </div>`;
+}
+
+// ---------- ORDERS (table + kanban) ----------
+let ordersViewMode = 'table';
+let ordersFilters = {q:'', stage:'', health:''};
+
+function viewOrders(){
+  const stageOptions = STAGES.map((s,i)=>`<option value="${i}">${s}</option>`).join('');
+  return `
+  <div class="toolbar">
+    <input class="select" style="min-width:200px;" id="ordersSearch" placeholder="Filter by customer or country…" value="${ordersFilters.q}">
+    <select class="select" id="stageFilter"><option value="">All Stages</option>${stageOptions}</select>
+    <select class="select" id="healthFilter">
+      <option value="">All Health</option>
+      <option value="good">On Track</option>
+      <option value="warn">Attention</option>
+      <option value="crit">At Risk</option>
+    </select>
+    <div class="viewtoggle" style="margin-left:auto;">
+      <button data-view="table" class="${ordersViewMode==='table'?'active':''}">Table</button>
+      <button data-view="kanban" class="${ordersViewMode==='kanban'?'active':''}">Kanban</button>
+    </div>
+  </div>
+  <div id="ordersContainer"></div>`;
+}
+
+function filteredOrders(){
+  return ORDERS.filter(o=>{
+    const d = getDerived(o);
+    if(ordersFilters.q){
+      const q = ordersFilters.q.toLowerCase();
+      if(!(o.customer.toLowerCase().includes(q) || o.country.toLowerCase().includes(q) || o.id.toLowerCase().includes(q))) return false;
+    }
+    if(ordersFilters.stage!=='' && d.stage!==Number(ordersFilters.stage)) return false;
+    if(ordersFilters.health && d.cat.key!==ordersFilters.health) return false;
+    return true;
+  });
+}
+
+function renderOrdersContainer(){
+  const box = document.getElementById('ordersContainer');
+  if(!box) return;
+  const list = filteredOrders();
+  box.innerHTML = ordersViewMode==='table' ? ordersTable(list) : ordersKanban(list);
+}
+
+function ordersTable(list){
+  if(!ORDERS.length) return `<div class="card"><div class="empty">No export orders yet. Click "New Export Order" above to add your first one — everything else in AfroFlow builds up from what you create.</div></div>`;
+  if(!list.length) return `<div class="card"><div class="empty">No orders match these filters.</div></div>`;
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Order</th><th>Customer</th><th>Country</th><th>Value</th><th>Stage</th><th>Next Action</th><th>Owner</th><th>Ship Date</th><th>Health</th></tr></thead>
+    <tbody>
+      ${list.map(o=>{ const d=getDerived(o); return `
+        <tr data-nav="#/orders/${o.id}">
+          <td class="cell-strong mono">${o.id}</td>
+          <td>${o.customer}</td>
+          <td>${o.country}</td>
+          <td class="mono">${fmtMoney(o.value)}</td>
+          <td>${STAGES[d.stage]}</td>
+          <td style="max-width:220px;">${d.next}</td>
+          <td>${ownerChip(d.owner)}</td>
+          <td class="mono">${fmtDateShort(o.shipDate)}</td>
+          <td><span class="health-bar"><span class="health-fill" style="width:${d.health}%; background:var(--${d.cat.key})"></span></span>${pill(d.cat)}</td>
+        </tr>`;}).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function ordersKanban(list){
+  return `<div class="kanban">
+    ${STAGES.map((s,i)=>{
+      const items = list.filter(o=>getDerived(o).stage===i);
+      return `<div class="kcol">
+        <div class="kcol-head"><span class="kcol-title">${s}</span><span class="kcol-count">${items.length}</span></div>
+        <div class="kcol-body">
+          ${items.map(o=>{ const d=getDerived(o); return `
+            <div class="kcard" data-nav="#/orders/${o.id}">
+              <div class="kcard-top"><span class="order-id">${o.id}</span>${pill(d.cat)}</div>
+              <div class="kcard-cust">${o.customer}</div>
+              <div class="kcard-country">${o.country}</div>
+              <div class="kcard-step">${d.isComplete?'Closed':d.activeStep.label}</div>
+              <div class="kcard-ship">Ship: ${fmtDateShort(o.shipDate)}</div>
+            </div>`;}).join('') || `<div class="empty" style="font-size:11.5px; padding:20px 8px;">No orders</div>`}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ---------- ORDER DETAIL ----------
+let activeTab = 'overview';
+function viewOrderDetail(id){
+  const o = ORDERS.find(x=>x.id===id);
+  if(!o) return `<div class="empty">Order not found.</div>`;
+  const d = getDerived(o);
+  const tabs = ['overview','workflow','tasks','documents','suppliers','shipment','payment','activity'];
+  return `
+  <div class="detail-head">
+    <div class="detail-top">
+      <div>
+        <div class="detail-idrow"><span class="order-id" style="font-size:13px;">${o.id}</span>${pill(d.cat)}</div>
+        <h2 style="font-size:21px; margin-top:6px;">${o.customer}</h2>
+        <div style="color:var(--text-muted); font-size:13px; margin-top:2px;">${o.country} · ${o.product}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div style="text-align:right;">
+          <div style="font-size:11px; color:var(--text-muted);">Order Health</div>
+          <div style="font-weight:700; font-size:13px;">${d.health}/100</div>
+        </div>
+        ${healthRing(d.health)}
+      </div>
+    </div>
+    ${d.blocker ? `<div class="blocker-box" style="margin-top:16px; margin-bottom:0;"><h4>⚠ Blocker — ${d.activeStep.label}</h4><p>${d.blocker}</p></div>` : ''}
+    <div class="detail-grid">
+      <div><div class="dg-label">Order Value</div><div class="dg-value mono">${fmtMoney(o.value)}</div></div>
+      <div><div class="dg-label">Quantity</div><div class="dg-value">${formatQty(o)}</div></div>
+      <div><div class="dg-label">Payment Terms</div><div class="dg-value">${o.terms}</div></div>
+      <div><div class="dg-label">Expected Shipment</div><div class="dg-value mono">${fmtDate(o.shipDate)}</div></div>
+      <div><div class="dg-label">Owner</div><div class="dg-value">${d.owner}</div></div>
+      <div><div class="dg-label">Progress</div><div class="dg-value">${d.pct}% complete</div></div>
+    </div>
+  </div>
+  <div class="tabs">
+    ${tabs.map(t=>`<button class="tab ${activeTab===t?'active':''}" data-tab="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}
+  </div>
+  <div id="tabContent">${renderOrderTab(o, activeTab)}</div>
+  `;
+}
+
+function renderOrderTab(o, tab){
+  const d = getDerived(o);
+
+  if(tab==='overview') return `
+    <div class="two-col">
+      <div class="card" style="padding:18px 20px;">
+        <h3 style="font-size:13.5px; margin-bottom:14px;">Next Required Action</h3>
+        <p style="font-size:14px; font-weight:500; margin:0 0 4px;">${d.next}</p>
+        <p style="font-size:12.5px; color:var(--text-muted); margin:0;">Owned by ${d.owner} · due ${fmtDate(d.dueDate)}</p>
+        <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:6px;"><span>Overall progress</span><span>${d.pct}%</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:${d.pct}%; background:var(--${d.cat.key})"></div></div>
+          <p style="font-size:11.3px; color:var(--text-muted); margin:8px 0 0;">Auto-advances as each step in the Tasks tab is checked off.</p>
+        </div>
+      </div>
+      <div class="card" style="padding:18px 20px;">
+        <h3 style="font-size:13.5px; margin-bottom:12px;">Order Summary</h3>
+        <div class="stack" style="gap:10px; font-size:12.8px;">
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted);">Product</span><span style="font-weight:600;">${o.product}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted);">Current Stage</span><span style="font-weight:600;">${STAGES[d.stage]}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted);">Inquiry Received</span><span style="font-weight:600;">${fmtDateShort(o.inquiryDate)}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted);">Order Created</span><span style="font-weight:600;">${fmtDateShort(o.createdAt)}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted);">Days to Shipment</span><span style="font-weight:600;">${daysBetween(TODAY,o.shipDate)}d</span></div>
+        </div>
+      </div>
+    </div>`;
+
+  if(tab==='workflow') return `<div class="card" style="padding:22px 24px;"><div class="stepper">
+    ${d.steps.map((s,i)=>`
+      <div class="step">
+        <div class="step-rail">
+          <div class="step-dot ${s.status==='completed'?'done':s.status==='overdue'?'blocked':s.status==='active'?'current':''}">
+            ${s.status==='completed'?'✓':(s.status==='overdue'?'!':s.status==='active'?'●':'')}
+          </div>
+          ${i<d.steps.length-1?`<div class="step-line ${s.status==='completed'?'done':''}"></div>`:''}
+        </div>
+        <div class="step-body">
+          <div class="step-title">${s.label}</div>
+          <div class="step-status" style="color:${s.status==='completed'?'var(--good)':s.status==='overdue'?'var(--crit)':s.status==='active'?'var(--accent)':'var(--text-muted)'}">${stepStatusText(s)}${s.viaDocument?' · via document':''}</div>
+        </div>
+      </div>`).join('')}
+  </div></div>`;
+
+  if(tab==='tasks') return `<div class="card divide">
+    ${d.steps.map((s,i)=>{
+      const clickable = i===d.doneCount || i===d.doneCount-1;
+      const done = s.status==='completed';
+      return `
+      <div class="task-row">
+        <div class="task-check ${done?'done':''} ${clickable?'':'disabled'}" ${clickable?`data-step-toggle="${o.id}:${i}"`:''}>${done?'<svg viewBox="0 0 24 24" fill="none" stroke-width="3"><path d="m5 13 4 4L19 7"/></svg>':''}</div>
+        <div style="min-width:0;">
+          <div class="task-name ${done?'done':''} ${s.status==='notstarted'?'future':''}">${s.label}${s.external?' <span style="color:var(--text-muted); font-weight:400;">(awaiting external party)</span>':''}${s.viaDocument?' <span class="pill pill-neutral" style="margin-left:6px; font-size:10px; padding:2px 7px;">via document</span>':''}</div>
+          <div class="task-order">Due ${fmtDateShort(s.due)} · ${TEAM[s.role]}</div>
+        </div>
+        <div class="task-meta">${statusPill(done?'completed':s.status==='overdue'?'overdue':s.status==='active'?(s.external?'awaiting':'inprogress'):'notstarted')}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  if(tab==='documents'){
+    const criticalBlocks = getCriticalBlocks(o.id);
+    const hasScannable = d.linkedDocs.some(l=>SCANNABLE_DOC_TYPES.includes(l.docType) && !l.locked);
+    return `
+    ${hasScannable ? `<div class="toolbar" style="margin-bottom:16px;">
+      <div style="font-size:12.3px; color:var(--text-muted);">AI Document Scanner reads uploaded documents and checks them against the order and each other.</div>
+      <button class="btn" style="margin-left:auto;" data-scan-all="${o.id}">Scan All</button>
+    </div>` : ''}
+    <div class="doclist">
+      ${d.linkedDocs.map(l=>{
+        const inputId = `fileInput_${o.id}_${l.docType.replace(/\s+/g,'')}`;
+        const groupNote = l.groupSize>1 ? `<div class="locked-hint">Part of "${l.stepLabel}" — needs all ${l.groupSize} documents (${l.groupUploadedCount}/${l.groupSize} uploaded)</div>` : '';
+        const scannable = SCANNABLE_DOC_TYPES.includes(l.docType);
+        const blocked = criticalBlocks.includes(l.stepIndex);
+        if(l.locked){
+          const prevLabel = STEPS[l.stepIndex-1]?.label;
+          return `<div class="doc-item" style="opacity:.55;">
+            <div class="doc-name">${l.docType}</div>
+            <span class="pill pill-neutral">Locked</span>
+            <div class="locked-hint">Complete "${prevLabel}" first</div>
+          </div>`;
+        }
+        if(l.uploaded){
+          const waiting = l.waitingOn.length ? `<div class="locked-hint">Still waiting on ${l.waitingOn.join(', ')}.</div>` : '';
+          const entry = scannable ? scanCacheEntry(o.id, l.docType) : null;
+          return `<div class="doc-item">
+            <div class="doc-name">${l.docType}</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <span class="pill pill-good">${l.viaDocument?'Uploaded':'Logged manually'}</span>
+              ${scannable ? scanStatusBadge(entry) : ''}
+            </div>
+            <div class="locked-hint">${l.uploaded.fileName} · ${fmtDateShort(new Date(l.uploaded.uploadedAt))}</div>
+            ${groupNote}${waiting}
+            ${blocked ? `<div class="locked-hint" style="color:var(--crit-text);">Critical issues found — task reopened until resolved below.</div>` : ''}
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              ${scannable ? `<button class="btn btn-primary" style="padding:5px 10px; font-size:11.5px;" data-scan-doc="${o.id}:${l.docType}" ${entry && entry._scanning ? 'disabled' : ''}>${entry && entry._scanning ? 'Scanning…' : 'Scan'}</button>` : ''}
+              <button class="btn" style="padding:5px 10px; font-size:11.5px;" data-delete-doc="${o.id}:${l.docType}">Remove</button>
+            </div>
+            ${scannable ? renderDiscrepancyPanel(entry, o.id, l.docType) : ''}
+          </div>`;
+        }
+        return `<div class="doc-item">
+          <div class="doc-name">${l.docType}</div>
+          <span class="pill pill-crit">Not Uploaded</span>
+          ${l.completed?`<div class="locked-hint">Task already completed manually — attach the document for your records.</div>`:groupNote}
+          <input type="file" id="${inputId}" style="font-size:11.3px;" ${scannable?'accept="application/pdf,image/png,image/jpeg,image/webp"':''}>
+          <button class="btn btn-primary" style="padding:6px 10px; font-size:11.5px; align-self:flex-start;" data-upload-doc="${o.id}:${l.docType}">Upload</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  if(tab==='suppliers'){
+    const procurementStage = d.stage>=3 && d.stage<=5;
+    return `<div class="card"><div class="empty">${procurementStage
+      ? `Order is in ${STAGES[d.stage]} — vendor entries recorded by Procurement for this order will appear here.`
+      : `No vendor coordination needed at this stage yet (currently ${STAGES[d.stage]}).`}</div></div>`;
+  }
+
+  if(tab==='shipment'){
+    const etd = addDays(o.shipDate,-2), eta = addDays(o.shipDate,16);
+    const vessel = getVessel(o.id);
+    const voyageStarted = d.stage>=6;
+    let voyagePct = null;
+    if(voyageStarted){
+      const span = daysBetween(etd,eta) || 1;
+      voyagePct = Math.max(0, Math.min(100, Math.round((daysBetween(etd,TODAY)/span)*100)));
+    }
+    return `<div class="card" style="padding:18px 20px; margin-bottom:16px;"><div class="detail-grid" style="margin-top:0; border-top:none; padding-top:0;">
+      <div><div class="dg-label">Port of Loading</div><div class="dg-value">Nhava Sheva, India</div></div>
+      <div><div class="dg-label">Port of Discharge</div><div class="dg-value">${o.country}</div></div>
+      <div><div class="dg-label">Shipping Line</div><div class="dg-value">${['Maersk','MSC','CMA CGM','Hapag-Lloyd'][o.id.charCodeAt(8)%4]}</div></div>
+      <div><div class="dg-label">ETD</div><div class="dg-value mono">${fmtDateShort(etd)}</div></div>
+      <div><div class="dg-label">ETA</div><div class="dg-value mono">${fmtDateShort(eta)}</div></div>
+      <div><div class="dg-label">Container Status</div><div class="dg-value">${d.stage>=6?'Confirmed':'Not yet requested'}</div></div>
+    </div></div>
+    <div class="card" style="padding:18px 20px;">
+      <h3 style="font-size:13.5px; margin-bottom:4px;">Vessel Tracking</h3>
+      <p style="font-size:11.8px; color:var(--text-muted); margin:0 0 14px;">Live AIS position comes from MarineTraffic, not from AfroFlow — record the vessel's IMO number here once it's assigned, then jump straight to its live position.</p>
+      ${vessel ? `
+        <div class="field-row" style="margin-bottom:0;">
+          <div><div class="dg-label">Vessel Name</div><div class="dg-value">${vessel.name}</div></div>
+          <div><div class="dg-label">IMO Number</div><div class="dg-value mono">${vessel.imo}</div></div>
+        </div>
+        ${voyageStarted ? `
+        <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:6px;"><span>Estimated voyage progress (from ETD/ETA schedule)</span><span>${voyagePct}%</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:${voyagePct}%; background:var(--accent)"></div></div>
+          <p style="font-size:11.3px; color:var(--text-muted); margin:8px 0 0;">This is a schedule-based estimate, not the vessel's real GPS position — open MarineTraffic below for that.</p>
+        </div>` : ''}
+        <div style="margin-top:16px; display:flex; gap:9px; flex-wrap:wrap;">
+          <a class="btn btn-primary" href="${marineTrafficUrl(vessel.imo)}" target="_blank" rel="noopener noreferrer">Track Live on MarineTraffic ↗</a>
+          <button class="btn" data-edit-vessel="${o.id}">Edit Vessel</button>
+        </div>
+      ` : `
+        <div class="field-row">
+          <div class="field" style="margin-bottom:0;"><label>Vessel Name</label><input id="vesselNameInput" placeholder="e.g. MSC Vista"></div>
+          <div class="field" style="margin-bottom:0;"><label>IMO Number</label><input id="vesselImoInput" placeholder="e.g. 9811000"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:12px;" data-save-vessel="${o.id}">Save Vessel</button>
+      `}
+    </div>`;
+  }
+
+  if(tab==='payment') return `<div class="card" style="padding:18px 20px;"><div class="detail-grid" style="margin-top:0; border-top:none; padding-top:0;">
+    <div><div class="dg-label">Payment Terms</div><div class="dg-value">${o.terms}</div></div>
+    <div><div class="dg-label">Order Value</div><div class="dg-value mono">${fmtMoney(o.value)}</div></div>
+    <div><div class="dg-label">Status</div><div class="dg-value">${d.stage>=8?'Realised':d.stage>=2?(o.terms==='LC'?'LC Accepted':'Deposit Received'):'Pending'}</div></div>
+    <div><div class="dg-label">Outstanding</div><div class="dg-value mono">${d.stage>=9?fmtMoney(0):fmtMoney(o.value)}</div></div>
+  </div></div>`;
+
+  if(tab==='activity'){
+    const items = [{date:o.createdAt, text:'Enquiry received — order created'}];
+    for(let i=1;i<d.doneCount;i++) items.push({date:o.stepDue[i], text:`${STEPS[i].label} completed`});
+    return `<div class="card" style="padding:22px 24px;"><div class="timeline">
+      ${items.map(t=>`<div class="tl-item"><div class="tl-date">${fmtDate(t.date)}</div><div class="tl-text">${t.text}</div></div>`).join('')}
+    </div></div>`;
+  }
+  return '';
+}
+
+// ---------- TASKS ----------
+let taskFilter = 'all';
+function viewTasks(){
+  const filters = [['all','All'],['overdue','Overdue'],['awaiting','Awaiting External'],['inprogress','In Progress']];
+  return `
+  <div class="toolbar">
+    ${filters.map(([k,l])=>`<button class="btn ${taskFilter===k?'btn-primary':''}" data-task-filter="${k}" style="padding:6px 12px; font-size:12.3px;">${l}</button>`).join('')}
+  </div>
+  <div id="tasksContainer"></div>`;
+}
+function renderTasksContainer(){
+  const box = document.getElementById('tasksContainer');
+  if(!box) return;
+  let list = actionTasks();
+  if(taskFilter!=='all') list = list.filter(t=>t.status===taskFilter);
+  list.sort((a,b)=>a.due-b.due);
+  box.innerHTML = list.length? `<div class="card divide">
+    ${list.map(t=>`
+      <div class="task-row">
+        <div class="task-check" data-advance="${t.orderId}" title="Mark this step complete"></div>
+        <div style="min-width:0; cursor:pointer;" data-nav="#/orders/${t.orderId}">
+          <div class="task-name">${t.name}</div>
+          <div class="task-order">${t.orderId} · ${t.orderCustomer} · Due ${fmtDateShort(t.due)}</div>
+        </div>
+        <div class="task-meta">${ownerChip(t.owner)}${statusPill(t.status)}</div>
+      </div>`).join('')}
+  </div>` : `<div class="card"><div class="empty">${ORDERS.length? 'No tasks in this filter.' : 'No export orders yet — add one to see live tasks here.'}</div></div>`;
+}
+
+// ---------- SUPPLIERS ----------
+function viewSuppliers(){
+  const rows = ORDERS.map(o=>({o,d:getDerived(o)})).filter(x=>!x.d.isComplete && x.d.stage>=3 && x.d.stage<=5);
+  return `
+  <div class="section-head"><h2>Orders Needing Procurement Action</h2></div>
+  ${rows.length? `<div class="table-wrap"><table>
+    <thead><tr><th>Order</th><th>Customer</th><th>Product</th><th>Current Step</th><th>Owner</th><th>Due</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr data-nav="#/orders/${x.o.id}"><td class="cell-strong mono">${x.o.id}</td><td>${x.o.customer}</td><td>${x.o.product}</td><td>${x.d.activeStep.label}</td><td>${ownerChip(x.d.owner)}</td><td class="mono">${fmtDateShort(x.d.dueDate)}</td></tr>`).join('')}</tbody>
+  </table></div>` : `<div class="card"><div class="empty">No orders are currently at the Procurement / Awaiting Supplies stage. This list populates automatically as orders reach those steps.</div></div>`}`;
+}
+
+// ---------- CUSTOMERS ----------
+function viewCustomers(){
+  const map = {};
+  ORDERS.forEach(o=>{
+    map[o.customer] = map[o.customer] || {name:o.customer, country:o.country, orders:0, value:0};
+    map[o.customer].orders++; map[o.customer].value += o.value;
+  });
+  const rows = Object.values(map).sort((a,b)=>b.value-a.value);
+  if(!rows.length) return `<div class="card"><div class="empty">No customers yet — they appear here as soon as you create an export order.</div></div>`;
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Customer</th><th>Country</th><th>Total Orders</th><th>Total Value</th></tr></thead>
+    <tbody>${rows.map(c=>`<tr><td class="cell-strong">${c.name}</td><td>${c.country}</td><td class="mono">${c.orders}</td><td class="mono">${fmtMoney(c.value)}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ---------- DOCUMENTS ----------
+function viewDocuments(){
+  const rows = [];
+  ORDERS.forEach(o=> getDerived(o).linkedDocs.forEach(l=> rows.push({...l, orderId:o.id, customer:o.customer})));
+  const pill = l => l.locked ? '<span class="pill pill-neutral">Locked</span>'
+    : l.uploaded ? `<span class="pill pill-good">${l.viaDocument?'Uploaded':'Logged manually'}</span>`
+    : '<span class="pill pill-crit">Not Uploaded</span>';
+  if(!rows.length) return `<div class="card"><div class="empty">No export orders yet — documents appear here once you create one.</div></div>`;
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Document</th><th>Order</th><th>Customer</th><th>Status</th></tr></thead>
+    <tbody>${rows.map(l=>`<tr data-nav="#/orders/${l.orderId}"><td class="cell-strong">${l.docType}</td><td class="mono">${l.orderId}</td><td>${l.customer}</td><td>${pill(l)}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ---------- CALENDAR ----------
+function viewCalendar(){
+  const events = [];
+  ORDERS.forEach(o=>{ const d=getDerived(o); if(!d.isComplete) events.push({date:o.shipDate, label:`Shipment — ${o.id} (${o.customer})`, orderId:o.id}); });
+  actionTasks().forEach(t=> events.push({date:t.due, label:`${t.name} — ${t.orderId}`, orderId:t.orderId}));
+  events.sort((a,b)=>a.date-b.date);
+  const upcoming = events.filter(e=>daysBetween(TODAY,e.date)>=-3).slice(0,18);
+  if(!upcoming.length) return `<div class="card"><div class="empty">No upcoming dates yet — create an export order to populate the calendar.</div></div>`;
+  return `<div class="card divide">
+    ${upcoming.map(e=>`
+      <div class="calrow" style="cursor:pointer;" data-nav="#/orders/${e.orderId}">
+        <div class="caldate"><div class="d">${e.date.getDate()}</div><div class="m">${e.date.toLocaleDateString('en-US',{month:'short'})}</div></div>
+        <div style="font-size:12.8px; font-weight:500;">${e.label}</div>
+        <div style="margin-left:auto; font-size:11.3px; color:${daysBetween(TODAY,e.date)<0?'var(--crit)':'var(--text-muted)'}">${daysBetween(TODAY,e.date)<0?Math.abs(daysBetween(TODAY,e.date))+'d overdue':daysBetween(TODAY,e.date)+'d away'}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ---------- ANALYTICS ----------
+function viewAnalytics(){
+  const rows = ORDERS.map(o=>({o,d:getDerived(o)}));
+  const active = rows.filter(x=>!x.d.isComplete);
+  const good = active.filter(x=>x.d.cat.key==='good').length;
+  const warn = active.filter(x=>x.d.cat.key==='warn').length;
+  const crit = active.filter(x=>x.d.cat.key==='crit').length;
+  const total = active.length || 1;
+  const metrics = [
+    ['Enquiries Responded On Time', 96],
+    ['Supplier Follow-Ups Completed', 88],
+    ['Documentation On Time', 94],
+    ['Shipments On Schedule', 91],
+    ['Bank Submission Discipline', 97],
+  ];
+  const opsScore = Math.round(metrics.reduce((s,m)=>s+m[1],0)/metrics.length);
+
+  return `
+  <div class="two-col" style="margin-bottom:20px;">
+    <div class="card" style="padding:22px 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+          <div style="font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em;">Afro Asiatic Operations Score</div>
+          <div style="font-family:'Sora',sans-serif; font-size:34px; font-weight:800; margin-top:4px;">${opsScore}<span style="font-size:16px; color:var(--text-muted); font-weight:600;">/100</span></div>
+        </div>
+        ${healthRing(opsScore)}
+      </div>
+      <div class="bar-chart">
+        ${metrics.map(([label,val])=>`
+          <div class="bar-row">
+            <span style="color:var(--text-2);">${label}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:${val}%; background:var(--accent)"></div></div>
+            <span class="mono" style="text-align:right; font-weight:600;">${val}%</span>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="card" style="padding:22px 24px;">
+      <div style="font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px;">Order Health Distribution</div>
+      <div class="bar-chart">
+        <div class="bar-row"><span style="color:var(--good-text); font-weight:600;">On Track</span><div class="bar-track"><div class="bar-fill" style="width:${good/total*100}%; background:var(--good)"></div></div><span class="mono" style="text-align:right; font-weight:600;">${good}</span></div>
+        <div class="bar-row"><span style="color:var(--warn-text); font-weight:600;">Attention</span><div class="bar-track"><div class="bar-fill" style="width:${warn/total*100}%; background:var(--warn)"></div></div><span class="mono" style="text-align:right; font-weight:600;">${warn}</span></div>
+        <div class="bar-row"><span style="color:var(--crit-text); font-weight:600;">At Risk</span><div class="bar-track"><div class="bar-fill" style="width:${crit/total*100}%; background:var(--crit)"></div></div><span class="mono" style="text-align:right; font-weight:600;">${crit}</span></div>
+      </div>
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border); font-size:12.3px; color:var(--text-muted);">${total} active order${total===1?'':'s'} across ${new Set(ORDERS.map(o=>o.country)).size} countr${new Set(ORDERS.map(o=>o.country)).size===1?'y':'ies'}.</div>
+    </div>
+  </div>
+  <div class="grid-stats">
+    <div class="stat-tile"><div class="stat-label">Sales · Avg Response Time</div><div class="stat-value">4h 30m</div><div class="stat-sub">Owner: ${TEAM.sales}</div></div>
+    <div class="stat-tile"><div class="stat-label">Procurement · On-time Supply</div><div class="stat-value">82%</div><div class="stat-sub">Owner: ${TEAM.procurement}</div></div>
+    <div class="stat-tile"><div class="stat-label">Documentation · Avg Turnaround</div><div class="stat-value">1.8 days</div><div class="stat-sub">Owner: ${TEAM.docs}</div></div>
+    <div class="stat-tile"><div class="stat-label">Finance · Avg Collection Time</div><div class="stat-value">11 days</div><div class="stat-sub">Owner: ${TEAM.finance}</div></div>
+  </div>`;
+}
+
+// ---------- AI ASSISTANT ----------
+const AI_QUESTIONS = [
+  'Which orders are most likely to miss their shipment date?',
+  'Which workflow stage is most often the bottleneck?',
+  'What tasks should I prioritise today?',
+  'Why is Order AA-2026-020 on track?',
+];
+function viewAI(){
+  return `<div class="ai-shell">
+    <div>
+      <div style="font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px;">Try asking</div>
+      ${AI_QUESTIONS.map(q=>`<button class="ai-q" data-ai-q="${q.replace(/"/g,'&quot;')}">${q}</button>`).join('')}
+    </div>
+    <div>
+      <div class="ai-answer" id="aiAnswer">
+        <div style="display:flex; align-items:center; gap:9px; color:var(--text-muted); font-size:12.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px;">${icon('ai')} Operations Assistant</div>
+        <p style="font-size:13.5px; color:var(--text-2); margin:0;">Ask about order risk, workflow bottlenecks, or today's priorities — I'll answer from the live order data. Pick a question on the left, or type your own below.</p>
+      </div>
+      <div class="ai-input-row">
+        <input id="aiInput" placeholder="Ask about an order, e.g. 'Why is AA-2026-020 on track?'">
+        <button class="btn btn-primary" id="aiAsk">Ask</button>
+      </div>
+    </div>
+  </div>`;
+}
+function aiAnswer(q){
+  const box = document.getElementById('aiAnswer');
+  const lower = q.toLowerCase();
+  let html = '';
+  const orderMatch = q.match(/AA-2026-\d{3}/i);
+
+  if(orderMatch){
+    const o = ORDERS.find(x=>x.id.toLowerCase()===orderMatch[0].toLowerCase());
+    if(o){
+      const d = getDerived(o);
+      const impacted = d.steps.filter(s=>s.i>d.activeIdx).map(s=>s.label);
+      html = `<h3 style="font-size:15px; margin-bottom:12px;">${o.id} — ${d.cat.label}</h3>
+      <p style="font-size:13.3px; color:var(--text-2); margin:0 0 14px;"><strong>${o.customer}</strong>, ${o.country} — Health ${d.health}/100</p>
+      ${d.blocker? `<div class="reason-item"><span class="reason-num">1</span><span>${d.blocker}</span></div>
+      <div class="reason-item"><span class="reason-num">2</span><span>${impacted.length} downstream step(s) cannot begin until this is resolved: ${impacted.slice(0,3).join(', ')}${impacted.length>3?'…':''}.</span></div>
+      <div class="reason-item"><span class="reason-num">3</span><span>Shipment is scheduled in ${daysBetween(TODAY,o.shipDate)} day(s).</span></div>`
+      : `<p style="font-size:13.3px;">No active blocker — order is progressing normally through ${STAGES[d.stage]}, currently at "${d.isComplete?'Closed':d.activeStep.label}".</p>`}
+      <div class="subtle-card" style="margin-top:16px;"><strong style="font-size:12.5px;">Recommended Action</strong><p style="font-size:12.8px; margin:6px 0 0;">${d.next}</p></div>`;
+    } else html = `<p>I couldn't find order ${orderMatch[0]}.</p>`;
+  } else if(lower.includes('miss') || lower.includes('risk')){
+    const risky = ORDERS.map(o=>({o,d:getDerived(o)})).filter(x=>!x.d.isComplete && x.d.cat.key!=='good').sort((a,b)=>daysBetween(TODAY,a.o.shipDate)-daysBetween(TODAY,b.o.shipDate)).slice(0,5);
+    html = `<h3 style="font-size:15px; margin-bottom:12px;">Orders Most Likely to Miss Shipment</h3>` +
+      (risky.length ? risky.map((x,i)=>`<div class="reason-item"><span class="reason-num">${i+1}</span><span><strong>${x.o.id}</strong> (${x.o.customer}) — ships in ${daysBetween(TODAY,x.o.shipDate)}d. ${x.d.blocker||'Behind on ' + STAGES[x.d.stage] + '.'}</span></div>`).join('') : `<p>No orders currently at risk of missing shipment.</p>`);
+  } else if(lower.includes('bottleneck') || lower.includes('stage')){
+    const counts={};
+    ORDERS.forEach(o=>{ const d=getDerived(o); if(!d.isComplete) counts[d.activeStep.label]=(counts[d.activeStep.label]||0)+1; });
+    const ranked = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    html = `<h3 style="font-size:15px; margin-bottom:12px;">Where Orders Are Currently Stalling</h3>` +
+      (ranked.length? ranked.map(([n,c],i)=>`<div class="reason-item"><span class="reason-num">${i+1}</span><span><strong>${n}</strong> — ${c} order(s) currently sitting here.</span></div>`).join('') : `<p>No active orders yet.</p>`);
+  } else if(lower.includes('priorit') || lower.includes('today')){
+    const urgent = actionTasks().filter(t=>t.status==='overdue').sort((a,b)=>a.due-b.due).slice(0,6);
+    const dueSoon = actionTasks().filter(t=>t.status!=='overdue').sort((a,b)=>a.due-b.due).slice(0,6-urgent.length);
+    const list = [...urgent, ...dueSoon];
+    html = `<h3 style="font-size:15px; margin-bottom:12px;">Today's Priorities</h3>` +
+      (list.length? list.map((t,i)=>`<div class="reason-item"><span class="reason-num">${i+1}</span><span><strong>${t.name}</strong> — ${t.orderId}, ${t.orderCustomer} (${statusPill(t.status)})</span></div>`).join('') : `<p>No tasks yet — create an export order to get started.</p>`);
+  } else {
+    html = `<p style="font-size:13.5px;">I can help analyze order risk, workflow bottlenecks, and today's priorities. Try one of the sample questions on the left, or ask about a specific order like "Why is AA-2026-020 on track?"</p>`;
+  }
+  box.innerHTML = html;
+}
+
+// ---------- SETTINGS ----------
+function viewSettings(){
+  const roles = [
+    ['Admin','Full access — users, workflows, order assignment, analytics, dependency overrides.','Dev'],
+    ['Sales','Enquiries, negotiations, proforma invoices.', TEAM.sales],
+    ['Procurement','Purchase orders, vendors, supply tracking.', TEAM.procurement],
+    ['Logistics','Containers, customs, shipping, bill of lading.', TEAM.logistics],
+    ['Documentation','Commercial invoices, packing lists, certificates.', TEAM.docs],
+    ['Finance','Payments, banking, eBRC.', TEAM.finance],
+  ];
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Role</th><th>Access</th><th>Assigned To</th></tr></thead>
+    <tbody>${roles.map(r=>`<tr style="cursor:default;"><td class="cell-strong">${r[0]}</td><td style="max-width:420px;">${r[1]}</td><td>${ownerChip(r[2])}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ---------- NEW ORDER MODAL ----------
+function openNewOrderModal(){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+  <div class="modal-back" id="modalBack">
+    <div class="modal">
+      <div class="modal-head"><h3 style="font-size:15px;">New Export Order</h3><button class="icon-btn" id="modalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="modal-body">
+        <div class="field-row">
+          <div class="field"><label>Customer Name</label><input id="f_customer" placeholder="e.g. Velez Trading Co"></div>
+          <div class="field"><label>Country</label><input id="f_country" placeholder="e.g. Kenya"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Product</label><input id="f_product" placeholder="e.g. Soda Ash Dense"></div>
+          <div class="field"><label>Container Type</label><select id="f_containerType"><option value="20ft">20 ft container</option><option value="40ft">40 ft container</option></select></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Number of Containers</label><input id="f_containerCount" type="number" min="1" step="1" value="1"></div>
+          <div class="field"><label>Order Value (USD)</label><input id="f_value" type="number" placeholder="50000"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Payment Terms</label><select id="f_terms"><option>Deposit</option><option>LC</option></select></div>
+          <div class="field"><label>Inquiry Received Date</label><input id="f_inquiry" type="date"></div>
+        </div>
+        <div class="field"><label>Expected Shipment Date</label><input id="f_ship" type="date"></div>
+        <div id="formError" class="field-hint" style="display:none; color:var(--crit-text); background:var(--crit-soft); border-radius:8px; padding:9px 11px; margin-top:-2px;"></div>
+        <p class="field-hint">The 15-step workflow, task schedule, owners and health score are generated automatically from these inputs and the shipment date — "Enquiry Received" is marked complete right away.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary" id="modalCreate">Create Order</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modalClose').onclick = closeModal;
+  document.getElementById('modalCancel').onclick = closeModal;
+  document.getElementById('modalBack').onclick = (e)=>{ if(e.target.id==='modalBack') closeModal(); };
+  document.getElementById('modalCreate').onclick = createOrderFromForm;
+  document.getElementById('f_inquiry').value = TODAY.toISOString().slice(0,10);
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function showFormError(msg){
+  const el = document.getElementById('formError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function createOrderFromForm(){
+  const customer = document.getElementById('f_customer').value.trim() || 'New Customer Ltd';
+  const country = document.getElementById('f_country').value.trim() || 'Kenya';
+  const product = document.getElementById('f_product').value.trim() || 'Export Product';
+  const containerType = document.getElementById('f_containerType').value;
+  const containerCount = Math.max(1, parseInt(document.getElementById('f_containerCount').value, 10) || 1);
+  const value = Number(document.getElementById('f_value').value) || 25000;
+  const terms = document.getElementById('f_terms').value;
+  const inquiryRaw = document.getElementById('f_inquiry').value || TODAY.toISOString().slice(0,10);
+  const shipRaw = document.getElementById('f_ship').value;
+  const ship = shipRaw || addDays(TODAY,45).toISOString().slice(0,10);
+
+  const inquiryDate = new Date(inquiryRaw);
+  const shipDate = new Date(ship);
+  if(inquiryDate > TODAY) return showFormError('Inquiry Received Date cannot be in the future.');
+  if(shipDate < inquiryDate) return showFormError('Expected Shipment Date cannot be earlier than the Inquiry Received Date.');
+
+  const id = nextOrderId();
+  // createdAt is the true, automatic record-creation timestamp; inquiryDate
+  // is the editable business date entered above.
+  const raw = {id, customer, country, product, containerType, containerCount, value, terms, ship, inquiryDate:inquiryRaw, createdAt:new Date().toISOString()};
+  ORDERS.unshift(buildOrder(raw));
+  let saved=[]; try{ saved = JSON.parse(localStorage.getItem('afroflow_new_orders')||'[]'); }catch(e){}
+  saved.unshift(raw);
+  localStorage.setItem('afroflow_new_orders', JSON.stringify(saved));
+  saveProgress(id, 1, []);
+  closeModal();
+  location.hash = '#/orders/' + id;
+}
+
+// ---------- EVENTS ----------
+function afterRender(page, id){
+  if(page==='orders' && !id) renderOrdersContainer();
+  if(page==='tasks') renderTasksContainer();
+  // Fetch scan status once per order visit — refreshScanCache() re-renders
+  // itself when the data arrives, and subsequent actions (upload/scan/review)
+  // call it explicitly, so this only needs to fire on first entry.
+  if(page==='orders' && id && activeTab==='documents' && !SCAN_CACHE[id]) refreshScanCache(id);
+
+  document.getElementById('ordersSearch')?.addEventListener('input', e=>{ ordersFilters.q = e.target.value; renderOrdersContainer(); });
+  document.getElementById('stageFilter')?.addEventListener('change', e=>{ ordersFilters.stage = e.target.value; renderOrdersContainer(); });
+  document.getElementById('healthFilter')?.addEventListener('change', e=>{ ordersFilters.health = e.target.value; renderOrdersContainer(); });
+  document.querySelectorAll('[data-view]').forEach(btn=> btn.addEventListener('click', ()=>{ ordersViewMode = btn.dataset.view; route(); }));
+
+  document.querySelectorAll('[data-task-filter]').forEach(btn=> btn.addEventListener('click', ()=>{ taskFilter = btn.dataset.taskFilter; route(); }));
+
+  document.querySelectorAll('[data-tab]').forEach(btn=> btn.addEventListener('click', ()=>{
+    activeTab = btn.dataset.tab;
+    const o = ORDERS.find(x=>x.id===id);
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===activeTab));
+    document.getElementById('tabContent').innerHTML = renderOrderTab(o, activeTab);
+    afterRender('orders', id);
+  }));
+
+  document.getElementById('aiAsk')?.addEventListener('click', ()=>{
+    const v = document.getElementById('aiInput').value.trim();
+    if(v) aiAnswer(v);
+  });
+  document.getElementById('aiInput')?.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(v) aiAnswer(v); } });
+  document.querySelectorAll('[data-ai-q]').forEach(btn=> btn.addEventListener('click', ()=> aiAnswer(btn.dataset.aiQ)));
+}
+
+document.addEventListener('click', (e)=>{
+  const navEl = e.target.closest('[data-nav]');
+  if(navEl){ location.hash = navEl.dataset.nav; return; }
+
+  const advEl = e.target.closest('[data-advance]');
+  if(advEl){
+    e.stopPropagation();
+    const o = ORDERS.find(x=>x.id===advEl.dataset.advance);
+    if(o){
+      const d = getDerived(o);
+      if(!d.isComplete){ o.doneCount++; saveProgress(o.id, o.doneCount, o.docSteps); }
+      route();
+    }
+    return;
+  }
+
+  const stepEl = e.target.closest('[data-step-toggle]');
+  if(stepEl){
+    e.stopPropagation();
+    const [orderId, idxStr] = stepEl.dataset.stepToggle.split(':');
+    const idx = Number(idxStr);
+    const o = ORDERS.find(x=>x.id===orderId);
+    if(o){
+      if(idx===o.doneCount && o.doneCount<STEPS.length) o.doneCount++;
+      else if(idx===o.doneCount-1 && idx>=1){
+        o.doneCount--;
+        o.docSteps = o.docSteps.filter(i=>i!==idx);
+      }
+      saveProgress(orderId, o.doneCount, o.docSteps);
+      route();
+    }
+    return;
+  }
+
+  const uploadDocEl = e.target.closest('[data-upload-doc]');
+  if(uploadDocEl){
+    e.stopPropagation();
+    const [orderId, docType] = uploadDocEl.dataset.uploadDoc.split(':');
+    const input = document.getElementById(`fileInput_${orderId}_${docType.replace(/\s+/g,'')}`);
+    if(SCANNABLE_DOC_TYPES.includes(docType)){
+      const file = input?.files?.[0];
+      if(!file){ showToast('Choose a file first.'); return; }
+      uploadScannableDocument(orderId, docType, file);
+    } else {
+      const fileName = input?.files?.[0]?.name || `${docType}.pdf`;
+      uploadLinkedDocument(orderId, docType, fileName);
+    }
+    return;
+  }
+
+  const deleteDocEl = e.target.closest('[data-delete-doc]');
+  if(deleteDocEl){
+    e.stopPropagation();
+    const [orderId, docType] = deleteDocEl.dataset.deleteDoc.split(':');
+    deleteLinkedDocument(orderId, docType);
+    return;
+  }
+
+  const scanDocEl = e.target.closest('[data-scan-doc]');
+  if(scanDocEl){
+    e.stopPropagation();
+    const [orderId, docType] = scanDocEl.dataset.scanDoc.split(':');
+    runScan(orderId, docType);
+    return;
+  }
+
+  const scanAllEl = e.target.closest('[data-scan-all]');
+  if(scanAllEl){
+    e.stopPropagation();
+    scanAllForOrder(scanAllEl.dataset.scanAll);
+    return;
+  }
+
+  const reviewDiscEl = e.target.closest('[data-review-disc]');
+  if(reviewDiscEl){
+    e.stopPropagation();
+    const [discId, status, orderId, docType] = reviewDiscEl.dataset.reviewDisc.split(':');
+    reviewDiscrepancy(discId, status, orderId, docType);
+    return;
+  }
+
+  const saveVesselEl = e.target.closest('[data-save-vessel]');
+  if(saveVesselEl){
+    e.stopPropagation();
+    const orderId = saveVesselEl.dataset.saveVessel;
+    const name = document.getElementById('vesselNameInput')?.value.trim();
+    const imo = document.getElementById('vesselImoInput')?.value.trim();
+    if(name && imo){ saveVessel(orderId, {name, imo}); route(); }
+    return;
+  }
+  const editVesselEl = e.target.closest('[data-edit-vessel]');
+  if(editVesselEl){
+    e.stopPropagation();
+    saveVessel(editVesselEl.dataset.editVessel, null);
+    route();
+  }
+});
+document.getElementById('newOrderBtn').addEventListener('click', openNewOrderModal);
+document.getElementById('globalSearch').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter' && e.target.value.trim()){
+    ordersFilters.q = e.target.value.trim();
+    location.hash = '#/orders';
+  }
+});
+document.getElementById('menuBtn').addEventListener('click', ()=> document.getElementById('sidebar').classList.toggle('open'));
+if(window.matchMedia('(max-width:760px)').matches) document.getElementById('menuBtn').style.display='flex';
+
+window.addEventListener('hashchange', route);
+route();
+</script>

@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Note: this database already has leftover tables (Document, Order, Customer,
+// etc.) from an earlier, abandoned rebuild attempt — unrelated to the real
+// site, which keeps its orders in the browser's local storage. Models here
+// use distinct names on purpose to avoid any collision, and orderId below is
+// a plain string matching the static site's own order ids (e.g.
+// "AA-2026-020") — there is no Order table in this database.
+
+enum ScanDocType {
+  PROFORMA_INVOICE
+  PURCHASE_ORDER
+  COMMERCIAL_INVOICE
+  PACKING_LIST
+  BILL_OF_LADING
+}
+
+enum ScanStatus {
+  SCANNING
+  CLEAN
+  WARNINGS
+  CRITICAL
+  FAILED
+}
+
+enum DiscrepancySeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+enum DiscrepancyStatus {
+  OPEN
+  RESOLVED
+  IGNORED
+}
+
+model ScannedDocument {
+  id         String      @id @default(cuid())
+  orderId    String
+  docType    ScanDocType
+  fileName   String
+  mimeType   String
+  blobUrl    String
+  fileSize   Int
+  uploadedBy String
+  uploadedAt DateTime    @default(now())
+  scans      DocScan[]
+
+  @@index([orderId])
+  @@index([orderId, docType])
+}
+
+// Each scan is a new row — re-scanning a new version of a document never
+// overwrites a prior result, so history is kept.
+model DocScan {
+  id            String            @id @default(cuid())
+  documentId    String
+  document      ScannedDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  status        ScanStatus
+  model         String
+  extractedJson Json?
+  errorMessage  String?
+  createdAt     DateTime          @default(now())
+  discrepancies ScanDiscrepancy[]
+
+  @@index([documentId])
+}
+
+model ScanDiscrepancy {
+  id             String              @id @default(cuid())
+  scanId         String
+  scan           DocScan             @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  field          String
+  severity       DiscrepancySeverity
+  foundValue     String?
+  foundSource    String?
+  expectedValue  String?
+  expectedSource String?
+  status         DiscrepancyStatus   @default(OPEN)
+  note           String?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@index([scanId])
+}
