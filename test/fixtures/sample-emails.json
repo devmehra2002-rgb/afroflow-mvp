@@ -1,0 +1,42 @@
+[
+  {
+    "key": "magic-moment",
+    "expect": "EXISTING_CUSTOMER",
+    "note": "Existing customer, repeat order. The demo's magic moment. Send from Sender A.",
+    "from": "dev_mehra@forge27.mesaschool.co",
+    "subject": "Brake shoes again",
+    "body": "Hi,\n\n2 x 40 ft, same brake shoes as last order, CIF Mombasa, by December.\n\nPlease confirm price.\n\nRegards,\nJames"
+  },
+  {
+    "key": "new-customer",
+    "expect": "NEW_CUSTOMER",
+    "note": "A clear enquiry from a sender we do not know. Send from Sender B.",
+    "from": "chipmonk.snacks@gmail.com",
+    "subject": "Enquiry: soda ash dense, 1 x 20 ft",
+    "body": "Hello,\n\nWe are Chipmonk Snacks in Dar es Salaam. Please quote 1 x 20 ft container of soda ash dense, CFR Dar es Salaam. We need it by 15 January 2027.\n\nThanks,\nChip Monk"
+  },
+  {
+    "key": "not-a-buyer",
+    "expect": "NEEDS_REVIEW",
+    "note": "Not a buyer enquiry. Send from Sender B.",
+    "from": "chipmonk.snacks@gmail.com",
+    "subject": "Happy Diwali!",
+    "body": "Wishing you and your team a very happy Diwali from all of us at Chipmonk Snacks. Enjoy the festival!"
+  },
+  {
+    "key": "vague",
+    "expect": "NEEDS_REVIEW",
+    "note": "Too vague to act on. Send from Sender B.",
+    "from": "chipmonk.snacks@gmail.com",
+    "subject": "hi",
+    "body": "hi, what is your price for the usual stuff?"
+  },
+  {
+    "key": "order-follow-up",
+    "expect": "ORDER_UPDATE",
+    "note": "Existing customer asking about one of their open orders. {{ORDER_ID}} is replaced with the real order number. Send from Sender A.",
+    "from": "dev_mehra@forge27.mesaschool.co",
+    "subject": "Re: {{ORDER_ID}}",
+    "body": "Any update on when {{ORDER_ID}} will be ready to ship? Our customer is asking.\n\nThanks,\nJames"
+  }
+]

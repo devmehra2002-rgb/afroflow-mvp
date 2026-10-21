@@ -1,0 +1,62 @@
+{
+  "name": "AfroFlow email intake",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AfroFlow email intake\n\nEvery minute, check the intake Gmail inbox. For each new email, send it to AfroFlow.\n\n**Before activating:**\n1. Gmail Trigger: pick or create your Gmail credential (the intake inbox).\n2. 'Send to AfroFlow': replace PASTE_INTAKE_SECRET_HERE in the X-Intake-Secret header.\n3. Click 'Execute workflow', then toggle Active.\n\nAfroFlow does the reading (Claude) and the sorting (rules). Nothing is turned into an order automatically.",
+        "height": 280,
+        "width": 420
+      },
+      "id": "6c1b0d1e-5f6a-4c1f-9a77-1f3a5b2d9e01",
+      "name": "Read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-160, -140]
+    },
+    {
+      "parameters": {
+        "pollTimes": { "item": [ { "mode": "everyMinute" } ] },
+        "simple": true,
+        "filters": {},
+        "options": {}
+      },
+      "id": "a2f4c7d0-3b8e-4e2a-8d55-0c9e7a41b102",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [340, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://afrofloow.vercel.app/api/intake/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Intake-Secret", "value": "PASTE_INTAKE_SECRET_HERE" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messageId: $json.id, from: ($json.From || ($json.from && $json.from.text) || ''), subject: ($json.Subject || $json.subject || ''), body: ($json.text || $json.snippet || ''), date: ($json.date ? new Date($json.date).toISOString() : new Date().toISOString()) }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "d9e8b3a1-7c52-4f60-b1a4-2e6f8c03d203",
+      "name": "Send to AfroFlow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [620, 160],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [ [ { "node": "Send to AfroFlow", "type": "main", "index": 0 } ] ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}
