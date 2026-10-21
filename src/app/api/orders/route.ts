@@ -44,5 +44,15 @@ export async function POST(req: NextRequest) {
       sourceInquiryId: b.sourceInquiryId ?? null,
     },
   });
+  // Created from an inquiry: link the two and note it in the order's log.
+  if (b.sourceInquiryId) {
+    const inq = await prisma.inquiry.findUnique({ where: { id: String(b.sourceInquiryId) } });
+    if (inq) {
+      await prisma.inquiry.update({ where: { id: inq.id }, data: { status: "CONVERTED", orderId: row.id, customerId: customer.id } });
+      await prisma.orderActivity.create({
+        data: { orderId: row.id, kind: "CREATED_FROM_EMAIL", text: `Order created from email "${inq.subject ?? "(no subject)"}" (${inq.fromEmail})`, inquiryId: inq.id },
+      });
+    }
+  }
   return NextResponse.json(toClientOrder(row), { status: 201 });
 }

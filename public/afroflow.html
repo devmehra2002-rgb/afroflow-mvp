@@ -327,7 +327,8 @@ tbody tr:hover td{background:var(--surface-2);}
 <div id="modalRoot"></div>
 
 <script>
-const TODAY = new Date('2026-09-08T09:00:00');
+// Was frozen at 8 Sep 2026 for the prototype; real emails need the real date.
+const TODAY = new Date();
 const fmtMoney = (v,c='USD') => (c==='USD'?'$':c+' ') + v.toLocaleString('en-US');
 const fmtDate = (d) => d.toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'});
 const fmtDateShort = (d) => d.toLocaleDateString('en-US',{day:'2-digit',month:'short'});
@@ -883,6 +884,7 @@ const ICONS = {
   dashboard:'<path d="M3 13h8V3H3v10zm10 8h8V3h-8v18zM3 21h8v-6H3v6z"/>',
   orders:'<path d="M4 4h16v4H4zM4 10h10v10H4zM17 10h3v4h-3zM17 17h3v3h-3z"/>',
   tasks:'<path d="m4 12 5 5L20 6"/>',
+  inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/>',
   suppliers:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M15 9h.01M15 13h.01M9 21v-4h6v4"/>',
   customers:'<circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6M16 8a3 3 0 1 1 0 6M22 20c0-2.6-2.1-4.8-5-5.6"/>',
   documents:'<path d="M14 3v5h5M6 3h8l5 5v13H6z"/>',
@@ -895,7 +897,7 @@ function icon(name){ return `<svg viewBox="0 0 24 24" fill="none" stroke="curren
 
 const NAV = [
   {group:'Overview', items:[['dashboard','Dashboard','#/dashboard']]},
-  {group:'Operations', items:[['orders','Export Orders','#/orders'],['tasks','Tasks','#/tasks'],['suppliers','Suppliers','#/suppliers'],['customers','Customers','#/customers'],['documents','Documents','#/documents'],['calendar','Calendar','#/calendar']]},
+  {group:'Operations', items:[['inbox','Inquiries','#/inquiries'],['orders','Export Orders','#/orders'],['tasks','Tasks','#/tasks'],['suppliers','Suppliers','#/suppliers'],['customers','Customers','#/customers'],['documents','Documents','#/documents'],['calendar','Calendar','#/calendar']]},
   {group:'Intelligence', items:[['analytics','Analytics','#/analytics'],['ai','AI Assistant','#/ai']]},
   {group:'', items:[['settings','Settings','#/settings']]},
 ];
@@ -906,8 +908,8 @@ function renderNav(){
   document.getElementById('nav').innerHTML = NAV.map(g=>`
     ${g.group?`<div class="nav-group-label">${g.group}</div>`:''}
     ${g.items.map(([ic,label,href])=>{
-      const active = hash===href || (href==='#/orders' && hash.startsWith('#/orders'));
-      const badge = (label==='Tasks' && overdue>0) ? `<span class="nav-badge">${overdue}</span>` : '';
+      const active = hash===href || (href==='#/orders' && hash.startsWith('#/orders')) || (href==='#/customers' && hash.startsWith('#/customers/'));
+      const badge = (label==='Tasks' && overdue>0) ? `<span class="nav-badge">${overdue}</span>` : (label==='Inquiries' && openInquiryCount()>0) ? `<span class="nav-badge">${openInquiryCount()}</span>` : '';
       return `<a class="nav-link ${active?'active':''}" href="${href}">${icon(ic)}<span>${label}</span>${badge}</a>`;
     }).join('')}
   `).join('');
@@ -951,7 +953,7 @@ function route(){
   const parts = hash.replace('#/','').split('/');
   const page = parts[0];
   const el = document.getElementById('content');
-  const titles = {dashboard:'Dashboard', orders: parts[1]?'Order Detail':'Export Orders', tasks:'Tasks', suppliers:'Suppliers', customers:'Customers', documents:'Documents', calendar:'Calendar', analytics:'Analytics', ai:'AI Assistant', settings:'Settings'};
+  const titles = {dashboard:'Dashboard', orders: parts[1]?'Order Detail':'Export Orders', tasks:'Tasks', suppliers:'Suppliers', customers: parts[1]?'Customer Folder':'Customers', inquiries:'New Inquiry Board', documents:'Documents', calendar:'Calendar', analytics:'Analytics', ai:'AI Assistant', settings:'Settings'};
   document.getElementById('pageTitle').textContent = titles[page] || 'AfroFlow';
 
   if(page==='dashboard') el.innerHTML = viewDashboard();
@@ -959,7 +961,9 @@ function route(){
   else if(page==='orders') el.innerHTML = viewOrders();
   else if(page==='tasks') el.innerHTML = viewTasks();
   else if(page==='suppliers') el.innerHTML = viewSuppliers();
+  else if(page==='customers' && parts[1]) el.innerHTML = viewCustomerFolder(parts[1]);
   else if(page==='customers') el.innerHTML = viewCustomers();
+  else if(page==='inquiries') el.innerHTML = viewInquiries();
   else if(page==='documents') el.innerHTML = viewDocuments();
   else if(page==='calendar') el.innerHTML = viewCalendar();
   else if(page==='analytics') el.innerHTML = viewAnalytics();
@@ -1341,6 +1345,8 @@ function renderOrderTab(o, tab){
   if(tab==='activity'){
     const items = [{date:o.createdAt, text:'Enquiry received — order created'}];
     for(let i=1;i<d.doneCount;i++) items.push({date:o.stepDue[i], text:`${STEPS[i].label} completed`});
+    (ACTIVITY_CACHE[o.id]||[]).forEach(a=> items.push({date:new Date(a.createdAt), text:esc(a.text)}));
+    items.sort((a,b)=>a.date-b.date);
     return `<div class="card" style="padding:22px 24px;"><div class="timeline">
       ${items.map(t=>`<div class="tl-item"><div class="tl-date">${fmtDate(t.date)}</div><div class="tl-text">${t.text}</div></div>`).join('')}
     </div></div>`;
@@ -1389,18 +1395,59 @@ function viewSuppliers(){
 }
 
 // ---------- CUSTOMERS ----------
+function ordersForCustomer(c){
+  return ORDERS.filter(o=> o.customerId===c.id || (o.customer||'').toLowerCase()===c.name.toLowerCase());
+}
 function viewCustomers(){
-  const map = {};
-  ORDERS.forEach(o=>{
-    map[o.customer] = map[o.customer] || {name:o.customer, country:o.country, orders:0, value:0};
-    map[o.customer].orders++; map[o.customer].value += o.value;
+  const rows = CUSTOMERS.map(c=>{
+    const os = ordersForCustomer(c);
+    return {id:c.id, name:c.name, country:c.country||'', emails:c.emails||[], orders:os.length, value:os.reduce((t,o)=>t+o.value,0),
+            open:INQUIRIES.filter(q=>q.customerId===c.id && OPEN_STATUSES.includes(q.status)).length};
   });
-  const rows = Object.values(map).sort((a,b)=>b.value-a.value);
-  if(!rows.length) return `<div class="card"><div class="empty">No customers yet — they appear here as soon as you create an export order.</div></div>`;
+  // customers that only exist as order names (e.g. the built-in example) keep showing, as before
+  const known = new Set(rows.map(r=>r.name.toLowerCase()));
+  const derived = {};
+  ORDERS.forEach(o=>{
+    if(known.has((o.customer||'').toLowerCase())) return;
+    derived[o.customer] = derived[o.customer] || {id:null, name:o.customer, country:o.country||'', emails:[], orders:0, value:0, open:0};
+    derived[o.customer].orders++; derived[o.customer].value += o.value;
+  });
+  const all = [...rows, ...Object.values(derived)].sort((a,b)=>b.value-a.value);
+  if(!all.length) return `<div class="card"><div class="empty">No customers yet — they appear here as soon as you create an export order.</div></div>`;
   return `<div class="table-wrap"><table>
-    <thead><tr><th>Customer</th><th>Country</th><th>Total Orders</th><th>Total Value</th></tr></thead>
-    <tbody>${rows.map(c=>`<tr><td class="cell-strong">${c.name}</td><td>${c.country}</td><td class="mono">${c.orders}</td><td class="mono">${fmtMoney(c.value)}</td></tr>`).join('')}</tbody>
+    <thead><tr><th>Customer</th><th>Country</th><th>Email addresses</th><th>Total Orders</th><th>Total Value</th><th>Open inquiries</th></tr></thead>
+    <tbody>${all.map(c=>`<tr ${c.id?`data-nav="#/customers/${c.id}"`:'style="cursor:default;"'}><td class="cell-strong">${esc(c.name)}</td><td>${esc(c.country)}</td><td style="font-size:12px; color:var(--text-2);">${c.emails.map(esc).join(', ')||'—'}</td><td class="mono">${c.orders}</td><td class="mono">${fmtMoney(c.value)}</td><td>${c.open?`<span class="pill pill-warn">${c.open}</span>`:'—'}</td></tr>`).join('')}</tbody>
   </table></div>`;
+}
+
+function viewCustomerFolder(id){
+  const c = CUSTOMERS.find(x=>x.id===id);
+  if(!c) return `<div class="empty">${CUSTOMERS_LOADED?'Customer not found.':'Loading…'}</div>`;
+  const os = ordersForCustomer(c);
+  const mine = INQUIRIES.filter(q=>q.customerId===id);
+  const open = mine.filter(q=>OPEN_STATUSES.includes(q.status));
+  const past = mine.filter(q=>!OPEN_STATUSES.includes(q.status));
+  return `
+  <div class="detail-head">
+    <div class="detail-top"><div>
+      <div style="font-size:11px; color:var(--text-muted);">CUSTOMER FOLDER</div>
+      <h2 style="font-size:21px; margin-top:4px;">${esc(c.name)}</h2>
+      <div style="color:var(--text-muted); font-size:13px; margin-top:2px;">${esc(c.country||'')} ${c.emails&&c.emails.length?'· '+c.emails.map(esc).join(', '):''}</div>
+    </div></div>
+    <div class="detail-grid">
+      <div><div class="dg-label">Orders</div><div class="dg-value">${os.length}</div></div>
+      <div><div class="dg-label">Total value</div><div class="dg-value mono">${fmtMoney(os.reduce((t,o)=>t+o.value,0))}</div></div>
+      <div><div class="dg-label">Open inquiries</div><div class="dg-value">${open.length}</div></div>
+    </div>
+  </div>
+  <div class="section-head"><h2>Open inquiries</h2></div>
+  ${open.length? `<div class="stack" style="gap:12px; margin-bottom:24px;">${open.map(q=>inquiryCard(q)).join('')}</div>` : `<div class="card" style="margin-bottom:24px;"><div class="empty">No open inquiries from this customer.</div></div>`}
+  <div class="section-head"><h2>Orders</h2></div>
+  ${os.length? `<div class="table-wrap" style="margin-bottom:24px;"><table>
+    <thead><tr><th>Order</th><th>Product</th><th>Quantity</th><th>Value</th><th>Stage</th><th>Ship date</th></tr></thead>
+    <tbody>${os.map(o=>{ const d=getDerived(o); return `<tr data-nav="#/orders/${o.id}"><td class="cell-strong mono">${o.id}</td><td>${esc(o.product)}</td><td>${esc(formatQty(o))}</td><td class="mono">${fmtMoney(o.value)}</td><td>${STAGES[d.stage]}</td><td class="mono">${fmtDateShort(o.shipDate)}</td></tr>`; }).join('')}</tbody>
+  </table></div>` : `<div class="card" style="margin-bottom:24px;"><div class="empty">No orders yet.</div></div>`}
+  ${past.length? `<div class="section-head"><h2>Earlier emails</h2></div><div class="stack" style="gap:12px;">${past.map(q=>inquiryCard(q,{compact:true})).join('')}</div>` : ''}`;
 }
 
 // ---------- DOCUMENTS ----------
@@ -1577,6 +1624,163 @@ function viewSettings(){
   </table></div>`;
 }
 
+// ---------- INQUIRIES (email intake) ----------
+// Buyer emails arrive via /api/intake/email (n8n -> Claude -> routing rules)
+// and land here. AI reads, rules decide, humans approve: nothing becomes an
+// order until a person clicks "Convert to order".
+const esc = (v)=> String(v==null?'':v).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+let INQUIRIES = [];
+let CUSTOMERS = [];
+let CUSTOMERS_LOADED = false;
+let inquiryTab = 'new';
+const ACTIVITY_CACHE = {};
+const OPEN_STATUSES = ['NEW_CUSTOMER','EXISTING_CUSTOMER','NEEDS_REVIEW'];
+// Fields below this confidence are flagged. The authoritative routing
+// threshold lives on the server (src/lib/intake/constants.ts); this is only
+// for the visual flag and is kept at the same default.
+const LOW_CONFIDENCE = 0.7;
+const INQUIRY_FIELDS = [
+  ['customerName','Customer'],['product','Product'],['quantity','Quantity'],['containerType','Container size'],
+  ['containerCount','Containers'],['incoterm','Incoterm'],['destinationPort','Destination port'],['deadline','Deadline'],
+];
+function openInquiryCount(){ return INQUIRIES.filter(q=>OPEN_STATUSES.includes(q.status)).length; }
+
+async function loadInquiries(){
+  try{
+    const res = await fetch('/api/inquiries');
+    if(!res.ok) return false;
+    const rows = await res.json();
+    const sig = JSON.stringify(rows.map(r=>[r.id,r.status,r.orderId]));
+    const changed = sig !== window.__inqSig;
+    window.__inqSig = sig;
+    INQUIRIES = rows;
+    return changed;
+  }catch(e){ return false; }
+}
+async function loadCustomers(){
+  try{
+    const res = await fetch('/api/customers');
+    if(res.ok){ CUSTOMERS = await res.json(); CUSTOMERS_LOADED = true; }
+  }catch(e){}
+}
+
+function replyByText(q){
+  const ms = new Date(q.replyByAt).getTime() - Date.now();
+  const abs = Math.abs(ms);
+  const h = Math.floor(abs/3600000), m = Math.floor((abs%3600000)/60000);
+  const dur = h>=24 ? `${Math.floor(h/24)}d ${h%24}h` : `${h}h ${String(m).padStart(2,'0')}m`;
+  const cls = ms<=0 ? 'pill-crit' : ms<6*3600000 ? 'pill-warn' : 'pill-good';
+  return {cls, text: ms<=0 ? `Reply overdue by ${dur}` : `Reply within ${dur}`};
+}
+
+function inquiryStatusPill(q){
+  const map = {
+    NEW_CUSTOMER:['pill-warn','New customer'],
+    EXISTING_CUSTOMER:['pill-good', 'Existing customer'],
+    ORDER_UPDATE:['pill-neutral','Added to order '+(q.orderId||'')],
+    NEEDS_REVIEW:['pill-crit','Needs review'],
+    CONVERTED:['pill-neutral','Converted to order '+(q.orderId||'')],
+    DISMISSED:['pill-neutral','Dismissed'],
+  };
+  const [cls,label] = map[q.status] || ['pill-neutral', q.status];
+  return `<span class="pill ${cls}">${esc(label)}</span>`;
+}
+
+function inquiryCard(q, opts){
+  opts = opts || {};
+  const f = (q.extracted && q.extracted.fields) || {};
+  const open = OPEN_STATUSES.includes(q.status);
+  const rb = replyByText(q);
+  const fieldRows = INQUIRY_FIELDS.map(([k,label])=>{
+    const x = f[k];
+    if(!x || x.value==null || x.value==='') return `<div><div class="dg-label">${label}</div><div class="dg-value" style="color:var(--text-muted); font-weight:500;">—</div></div>`;
+    const low = typeof x.confidence==='number' && x.confidence < LOW_CONFIDENCE;
+    return `<div title="${esc(x.snippet?'From the email: “'+x.snippet+'”':'')}" style="${low?'background:var(--warn-soft); border-radius:8px; padding:6px 8px; margin:-6px -8px;':''}">
+      <div class="dg-label">${label}${low?' <span style="color:var(--warn-text);">⚠ low confidence</span>':''}</div>
+      <div class="dg-value">${esc(x.value)}${k==='product' && q.extracted && q.extracted.productInferred ? ' <span class="pill pill-neutral" style="font-size:10px; padding:1px 6px;">inferred from last order</span>':''}</div>
+    </div>`;
+  }).join('');
+  const conf = typeof q.overallConfidence==='number' ? `<span class="pill ${q.overallConfidence<LOW_CONFIDENCE?'pill-warn':'pill-neutral'}" title="Overall confidence">${Math.round(q.overallConfidence*100)}% confident</span>` : '';
+  return `<div class="card" style="padding:16px 18px;">
+    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+      <div style="min-width:0;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">${inquiryStatusPill(q)}${q.customerId && q.customerName ? `<a href="#/customers/${esc(q.customerId)}" style="font-size:12.5px; font-weight:600; color:var(--accent);">${esc(q.customerName)}</a>`:''}${conf}</div>
+        <div style="font-size:14px; font-weight:600; margin-top:6px;">${esc(q.subject||'(no subject)')}</div>
+        <div style="font-size:12px; color:var(--text-muted);">${esc(q.fromName?q.fromName+' · ':'')}${esc(q.fromEmail)} · received ${new Date(q.receivedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+      ${open ? `<span class="pill ${rb.cls}" data-replyby="${esc(q.replyByAt)}">${rb.text}</span>` : ''}
+    </div>
+    ${opts.compact ? '' : `<div class="detail-grid" style="margin-top:14px; padding-top:14px;">${fieldRows}</div>`}
+    ${q.routeReason ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:10px;">Why it's here: ${esc(q.routeReason)}</div>` : ''}
+    <details style="margin-top:10px;"><summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-2);">Original email</summary>
+      <pre style="white-space:pre-wrap; font-family:inherit; font-size:12.5px; background:var(--surface-2); border-radius:8px; padding:10px 12px; margin:8px 0 0;">${esc(q.bodyText||'')}</pre></details>
+    ${open ? `<div style="display:flex; gap:8px; margin-top:12px;">
+      <button class="btn btn-primary" data-convert-inquiry="${esc(q.id)}">Convert to order</button>
+      <button class="btn" data-dismiss-inquiry="${esc(q.id)}">Dismiss</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function viewInquiries(){
+  const tabs = [
+    ['new','New customers', q=>q.status==='NEW_CUSTOMER'],
+    ['existing','Existing customers', q=>q.status==='EXISTING_CUSTOMER'],
+    ['review','Needs review', q=>q.status==='NEEDS_REVIEW'],
+    ['updates','Order updates', q=>q.status==='ORDER_UPDATE'],
+    ['closed','Closed', q=>q.status==='CONVERTED'||q.status==='DISMISSED'],
+  ];
+  const cur = tabs.find(t=>t[0]===inquiryTab) || tabs[0];
+  const list = INQUIRIES.filter(cur[2]);
+  const empty = {new:'No new-customer enquiries waiting. When someone we don\'t know emails the inbox, it lands here.', existing:'No open enquiries from existing customers. They also appear in each customer\'s folder.', review:'Nothing needs review. Uncertain or non-buyer emails land here.', updates:'No emails have been added to existing orders yet.', closed:'Nothing closed yet.'}[cur[0]];
+  return `
+  <div style="margin-bottom:14px; font-size:12.8px; color:var(--text-muted);">Emails to the intake inbox are read by AI and sorted by simple rules. <strong>Nothing becomes an order until you click “Convert to order”.</strong></div>
+  <div class="tabs">${tabs.map(([k,label,fn])=>{ const n=INQUIRIES.filter(fn).length; return `<button class="tab ${cur[0]===k?'active':''}" data-inq-tab="${k}">${label}${n?` <span class="pill pill-neutral" style="font-size:10px; padding:1px 6px; margin-left:4px;">${n}</span>`:''}</button>`; }).join('')}</div>
+  ${list.length ? `<div class="stack" style="gap:12px;">${list.map(q=>inquiryCard(q)).join('')}</div>` : `<div class="card"><div class="empty">${empty}</div></div>`}`;
+}
+
+function prefillFromInquiry(q){
+  const f = (q.extracted && q.extracted.fields) || {};
+  const v = k => (f[k] && f[k].value!=null) ? f[k].value : '';
+  const deadline = String(v('deadline'));
+  return {
+    inquiryId:q.id,
+    customer: q.customerName || v('customerName') || q.fromName || '',
+    country: q.customerCountry || '',
+    product: v('product'),
+    containerType: v('containerType'),
+    containerCount: v('containerCount'),
+    ship: /^\d{4}-\d{2}-\d{2}$/.test(deadline) ? deadline : '',
+    inquiryDate: new Date(q.receivedAt).toISOString().slice(0,10),
+  };
+}
+
+async function dismissInquiry(id){
+  try{
+    const res = await fetch('/api/inquiries/'+encodeURIComponent(id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'DISMISSED'})});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    await loadInquiries();
+    route();
+  }catch(e){ showToast('Could not dismiss — check your connection.'); }
+}
+
+// refresh shared data in the background so new emails appear without a reload
+setInterval(async()=>{
+  if(document.hidden) return;
+  const changed = await loadInquiries();
+  if(!changed) return;
+  renderNav();
+  if(/^#\/(inquiries|customers|dashboard)/.test(location.hash) && !document.getElementById('modalBack')){
+    const y = window.scrollY; route(); window.scrollTo(0,y);
+  }
+}, 15000);
+// keep the "reply within" timers ticking
+setInterval(()=>{
+  document.querySelectorAll('[data-replyby]').forEach(el=>{
+    const r = replyByText({replyByAt: el.dataset.replyby});
+    el.className = 'pill '+r.cls; el.textContent = r.text;
+  });
+}, 30000);
+
 // ---------- ONE-TIME IMPORT FROM LOCAL STORAGE ----------
 // The only remaining use of localStorage: reading what older versions of the
 // app saved in this browser, so it can be copied into the shared database.
@@ -1606,13 +1810,15 @@ async function importLocalData(){
 }
 
 // ---------- NEW ORDER MODAL ----------
-function openNewOrderModal(){
+function openNewOrderModal(prefill){
+  window.__prefillInquiryId = prefill && prefill.inquiryId || null;
   const root = document.getElementById('modalRoot');
   root.innerHTML = `
   <div class="modal-back" id="modalBack">
     <div class="modal">
       <div class="modal-head"><h3 style="font-size:15px;">New Export Order</h3><button class="icon-btn" id="modalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <div class="modal-body">
+        ${prefill ? `<div class="field-hint" style="margin:0 0 14px; background:var(--accent-soft); color:var(--accent-strong); border-radius:8px; padding:9px 11px;">Pre-filled from the buyer's email. Check every field, then click Create Order to confirm.</div>` : ''}
         <div class="field-row">
           <div class="field"><label>Customer Name</label><input id="f_customer" placeholder="e.g. Velez Trading Co"></div>
           <div class="field"><label>Country</label><input id="f_country" placeholder="e.g. Kenya"></div>
@@ -1644,8 +1850,14 @@ function openNewOrderModal(){
   document.getElementById('modalBack').onclick = (e)=>{ if(e.target.id==='modalBack') closeModal(); };
   document.getElementById('modalCreate').onclick = createOrderFromForm;
   document.getElementById('f_inquiry').value = TODAY.toISOString().slice(0,10);
+  if(prefill){
+    const set = (id,v)=>{ if(v!=='' && v!=null) document.getElementById(id).value = v; };
+    set('f_customer', prefill.customer); set('f_country', prefill.country); set('f_product', prefill.product);
+    if(prefill.containerType==='20ft' || prefill.containerType==='40ft') set('f_containerType', prefill.containerType);
+    set('f_containerCount', prefill.containerCount); set('f_ship', prefill.ship); set('f_inquiry', prefill.inquiryDate);
+  }
 }
-function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; window.__prefillInquiryId = null; }
 function showFormError(msg){
   const el = document.getElementById('formError');
   el.textContent = msg;
@@ -1670,7 +1882,7 @@ async function createOrderFromForm(){
 
   // createdAt is the true, automatic record-creation timestamp; inquiryDate
   // is the editable business date entered above. The server assigns the id.
-  const payload = {customer, country, product, containerType, containerCount, value, terms, ship, inquiryDate:inquiryRaw, createdAt:new Date().toISOString()};
+  const payload = {customer, country, product, containerType, containerCount, value, terms, ship, inquiryDate:inquiryRaw, createdAt:new Date().toISOString(), sourceInquiryId: window.__prefillInquiryId || undefined};
   const btn = document.getElementById('modalCreate');
   if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
   let row;
@@ -1684,6 +1896,7 @@ async function createOrderFromForm(){
   }
   ORDERS.unshift(applyOrderRow(buildOrder(row), row));
   closeModal();
+  if(payload.sourceInquiryId){ await loadInquiries(); await loadCustomers(); }
   location.hash = '#/orders/' + row.id;
 }
 
@@ -1694,6 +1907,10 @@ function afterRender(page, id){
   // Fetch scan status once per order visit — refreshScanCache() re-renders
   // itself when the data arrives, and subsequent actions (upload/scan/review)
   // call it explicitly, so this only needs to fire on first entry.
+  if(page==='orders' && id && activeTab==='activity' && !ACTIVITY_CACHE[id]){
+    ACTIVITY_CACHE[id] = [];
+    fetch('/api/orders/'+encodeURIComponent(id)+'/activity').then(r=>r.ok?r.json():[]).then(rows=>{ ACTIVITY_CACHE[id]=rows; route(); }).catch(()=>{});
+  }
   if(SCANNER_ENABLED && page==='orders' && id && activeTab==='documents' && !SCAN_CACHE[id]) refreshScanCache(id);
 
   document.getElementById('ordersSearch')?.addEventListener('input', e=>{ ordersFilters.q = e.target.value; renderOrdersContainer(); });
@@ -1800,6 +2017,13 @@ document.addEventListener('click', (e)=>{
     return;
   }
 
+  const convEl = e.target.closest('[data-convert-inquiry]');
+  if(convEl){ e.stopPropagation(); const q = INQUIRIES.find(x=>x.id===convEl.dataset.convertInquiry); if(q) openNewOrderModal(prefillFromInquiry(q)); return; }
+  const dismEl = e.target.closest('[data-dismiss-inquiry]');
+  if(dismEl){ e.stopPropagation(); dismissInquiry(dismEl.dataset.dismissInquiry); return; }
+  const inqTabEl = e.target.closest('[data-inq-tab]');
+  if(inqTabEl){ e.stopPropagation(); inquiryTab = inqTabEl.dataset.inqTab; route(); return; }
+
   if(e.target.closest('[data-import-local]')){ e.stopPropagation(); importLocalData(); return; }
 
   const saveVesselEl = e.target.closest('[data-save-vessel]');
@@ -1832,6 +2056,7 @@ window.addEventListener('hashchange', route);
 (async function bootstrap(){
   let failed = null;
   try{ await loadState(); }catch(e){ failed = String(e && e.message || e); RAW_ORDERS.forEach(r=>{ ORDER_META[r.id] = ORDER_META[r.id] || {}; }); }
+  await Promise.all([loadInquiries(), loadCustomers()]);
   route();
   if(failed) showBackendError('('+failed+')');
 })();
