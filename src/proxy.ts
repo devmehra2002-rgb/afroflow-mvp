@@ -16,5 +16,7 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  // /api/intake is exempt from the Google sign-in gate: n8n calls it with a
+  // shared-secret header instead (checked inside the route).
+  matcher: ["/((?!api/auth|api/intake|_next/static|_next/image|favicon.ico).*)"],
 };
