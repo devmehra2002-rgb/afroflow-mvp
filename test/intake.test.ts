@@ -1,5 +1,6 @@
 // Tests for the email-intake logic. The AI is MOCKED: no network, no API key.
 import { extractEnquiry, loadPrompt, enquirySchema, type AnthropicLike, type Enquiry } from "../src/lib/intake/extract";
+import { clipText } from "../src/lib/intake/clip";
 import { parseSender, secretsMatch, routeInquiry, applyPreviousOrderRule, findOrderReference, parseGmailMessage } from "../src/lib/intake/rules";
 
 let passed = 0, failed = 0;
@@ -109,6 +110,31 @@ const args = { prompt: "p", from: "a@b.com", subject: "s", body: "b", today: "20
   ok(sent.includes("<email>") && sent.includes("Today's date: 2026-10-22"), "email is wrapped as data and today's date is supplied");
   const hostile = enquiry({ overallConfidence: 0.2 });
   eq(routeInquiry({ ...base, extraction: hostile, customer: velez }).status, "NEEDS_REVIEW", "routing depends only on the validated numbers, not on text in the email");
+
+// ---- fix: known customer repeating their last order ("same as last time") ----
+{
+  const rep = (over: Partial<Enquiry>) => enquiry({ refersToPreviousOrder: true, ...over });
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: velez, repeatOrderInferred: true }).status, "EXISTING_CUSTOMER", "clear repeat order from a known customer passes a lower bar (0.45)");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.39 }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "but not below 0.4");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: velez, repeatOrderInferred: false }).status, "NEEDS_REVIEW", "no inferred product: normal bar applies");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: null, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "an UNKNOWN sender never gets the lower bar");
+  eq(routeInquiry({ ...base, extraction: enquiry({ overallConfidence: 0.45, refersToPreviousOrder: false }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "the email must actually refer to a previous order");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45, isBuyerEnquiry: { value: true, confidence: 0.5 } }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "and the AI must be sure it is a buyer enquiry");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.9, isBuyerEnquiry: { value: false, confidence: 0.99 } }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "a non-buyer is still a non-buyer");
+}
+
+// ---- fix: long emails keep their start AND their end ----
+{
+  const small = clipText("hello", 100);
+  ok(small === "hello", "short text is untouched");
+  const big = "START-REQUEST. " + "filler ".repeat(30000) + " END-REQUEST: need 1 x 20ft cardamom.";
+  const c = clipText(big, 12000);
+  ok(c.length <= 12000, "clipped text fits the limit");
+  ok(c.includes("START-REQUEST") && c.includes("END-REQUEST: need 1 x 20ft cardamom."), "both the start and the end survive");
+  ok(/middle of this long email was left out/.test(c), "the AI is told something was left out");
+  ok(clipText("x".repeat(500), 500).length === 500 && clipText("x".repeat(501), 500).length <= 500, "exact limit boundary");
+  ok(clipText("abc", 0).length >= 0, "tiny limit does not crash");
+}
 
   const p = loadPrompt();
   ok(p.version === "1.1" && p.text.includes("untrusted"), "prompt file loads with its version");

@@ -167,6 +167,7 @@ export function parsePastedItems(text: string): { lines: ProformaLine[]; skipped
     if (!raw.trim()) continue;
     const cells = raw.split("\t").map((c) => c.trim());
     const filled = cells.filter(Boolean);
+    if (filled.length === 1 && cells.findIndex(Boolean) > 1) { skipped++; continue; } // a stray cell in a number column is not a heading
     if (filled.length === 1) { lines.push({ heading: true, code: "", description: filled[0].slice(0, 300), hsn: "", quantity: 0, unit: "", unitPrice: 0 }); continue; }
     let code = "", description = "", qty = "", price = "";
     if (cells.length >= 4) [code, description, qty, price] = cells;

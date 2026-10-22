@@ -103,6 +103,8 @@ async function main() {
   check(pasted.lines[4].description === "GADGET" && pasted.lines[4].code === "" && pasted.lines[4].unitPrice === 2.5, "paste: 3 columns = description, qty, price");
   check(parsePastedItems("A\tB\t1,200\t1,5.5").lines.length === 0 && parsePastedItems("A\tB\t1\t1,5").lines.length === 0, "paste: ambiguous 1,5 is refused, never guessed as 15");
   check(parsePastedItems("A\tB\t1,200\t1,234.50").lines[0]?.quantity === 1200 && parsePastedItems("A\tB\t1\tN/A").lines.length === 0, "paste: real thousands separators work, N/A skipped");
+  check(parsePastedItems("\t\tjunk\t").lines.length === 0 && parsePastedItems("\t\tjunk\t").skipped === 1, "paste: a stray cell in a number column is skipped, not turned into a heading");
+  check(parsePastedItems("\tSECTION X").lines[0]?.heading === true, "paste: a lone cell in the description column is still a heading");
   check(parsePastedItems("").lines.length === 0 && parsePastedItems(null as unknown as string).lines.length === 0, "paste: empty input is fine");
   check(parsePastedItems(Array.from({ length: 1200 }, (_, i) => `C${i}\tItem\t1\t1`).join("\n")).lines.length === 1000, "paste: capped at 1000 lines");
 

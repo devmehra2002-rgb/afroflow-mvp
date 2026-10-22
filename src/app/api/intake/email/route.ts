@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { CONFIDENCE_THRESHOLD, DEFAULT_MODEL, REPLY_WINDOW_HOURS, TOTAL_STEPS, MAX_BODY_CHARS } from "@/lib/intake/constants";
 import { extractEnquiry, loadPrompt, type Enquiry } from "@/lib/intake/extract";
+import { clipText } from "@/lib/intake/clip";
 import { applyPreviousOrderRule, parseGmailMessage, parseSender, routeInquiry, secretsMatch } from "@/lib/intake/rules";
 
 export const maxDuration = 60;
@@ -86,10 +87,11 @@ export async function POST(req: NextRequest) {
   const route = routeInquiry({
     extraction: enquiry,
     extractionError,
-    text: `${subject}\n${body}`.slice(0, MAX_BODY_CHARS),
+    text: clipText(`${subject}\n${body}`, MAX_BODY_CHARS),
     customer: customer ? { id: customer.id, name: customer.name } : null,
     openOrders,
     previousOrderUnresolved: unresolved,
+    repeatOrderInferred: productInferred,
   });
 
   const inquiry = await prisma.inquiry.create({

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { DEFAULT_MODEL, MAX_BODY_CHARS } from "./constants";
+import { clipText } from "./clip";
 import type { AnthropicLike } from "./extract";
 
 export function loadDraftPrompt(): { text: string; version: string } {
@@ -39,7 +40,7 @@ export async function draftReply(params: {
   orders: PastOrder[];
 }): Promise<{ success: boolean; text: string; error: string | null }> {
   const { client, model = DEFAULT_MODEL, prompt, fromName, subject, body, orders } = params;
-  const input = `Buyer name: ${fromName || "unknown"}\n\nPrevious orders:\n${describeOrders(orders)}\n\n<email>\nSubject: ${subject ?? ""}\n\n${(body ?? "").slice(0, MAX_BODY_CHARS)}\n</email>`;
+  const input = `Buyer name: ${fromName || "unknown"}\n\nPrevious orders:\n${describeOrders(orders)}\n\n<email>\nSubject: ${subject ?? ""}\n\n${clipText(body ?? "", MAX_BODY_CHARS)}\n</email>`;
   try {
     const res = await client.messages.create({ model, max_tokens: 600, system: prompt, messages: [{ role: "user", content: input }] });
     const text = (res.content.find((b) => b.type === "text")?.text ?? "").trim();

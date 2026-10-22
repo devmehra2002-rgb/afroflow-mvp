@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import { DEFAULT_MODEL, MAX_BODY_CHARS } from "./constants";
+import { clipText } from "./clip";
 
 // ---- The prompt lives in /prompts so it is versioned in git ----
 export function loadPrompt(): { text: string; version: string } {
@@ -65,7 +66,7 @@ export async function extractEnquiry(params: {
   today: string; // YYYY-MM-DD
 }): Promise<ExtractResult> {
   const { client, model = DEFAULT_MODEL, prompt, from, subject, body, today } = params;
-  const email = `Today's date: ${today}\n\n<email>\nFrom: ${from}\nSubject: ${subject}\n\n${body.slice(0, MAX_BODY_CHARS)}\n</email>`;
+  const email = `Today's date: ${today}\n\n<email>\nFrom: ${from}\nSubject: ${subject}\n\n${clipText(body, MAX_BODY_CHARS)}\n</email>`;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     let text = "";

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { Enquiry } from "./extract";
-import { CONFIDENCE_THRESHOLD, ORDER_ID_PATTERN } from "./constants";
+import { CONFIDENCE_THRESHOLD, ORDER_ID_PATTERN, REPEAT_ORDER_THRESHOLD } from "./constants";
 
 // AI reads, rules decide, humans approve. Everything in this file is plain
 // code: no AI, no guessing, same input always gives the same answer.
@@ -30,6 +30,7 @@ export interface RouteInput {
   customer: { id: string; name: string } | null; // matched by exact sender email
   openOrders: OpenOrderRef[];                     // this customer's unfinished orders
   previousOrderUnresolved?: boolean;              // says "same as last order" but there is none
+  repeatOrderInferred?: boolean;                  // the product was filled in from this customer's last order
   threshold?: number;
 }
 
@@ -69,9 +70,12 @@ export function routeInquiry(input: RouteInput): RouteResult {
     return { status: "NEEDS_REVIEW", routeReason: "Not recognised as a buyer enquiry." };
   }
 
-  // 4. Not sure enough.
-  if (extraction.overallConfidence < threshold) {
-    return { status: "NEEDS_REVIEW", routeReason: `Overall confidence ${extraction.overallConfidence.toFixed(2)} is below the ${threshold} threshold.` };
+  // 4. Not sure enough. (A known customer plainly repeating their last order gets a lower bar,
+  //    because such emails are short by nature and the product was filled in from their history.)
+  const repeat = !!(customer && extraction.refersToPreviousOrder && input.repeatOrderInferred && extraction.isBuyerEnquiry.confidence >= threshold);
+  const bar = repeat ? Math.min(threshold, REPEAT_ORDER_THRESHOLD) : threshold;
+  if (extraction.overallConfidence < bar) {
+    return { status: "NEEDS_REVIEW", routeReason: `Overall confidence ${extraction.overallConfidence.toFixed(2)} is below the ${bar} threshold.` };
   }
 
   // 5. "Same as last order" but there is no last order to copy from.

@@ -13,6 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const b = await req.json().catch(() => null);
   if (!b?.status || !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-  const updated = await prisma.inquiry.update({ where: { id }, data: { status: b.status } });
-  return NextResponse.json({ id: updated.id, status: updated.status });
+  const r = await prisma.inquiry.updateMany({ where: { id }, data: { status: b.status } });
+  if (r.count === 0) return NextResponse.json({ error: "Inquiry not found" }, { status: 404 });
+  return NextResponse.json({ id, status: b.status });
 }

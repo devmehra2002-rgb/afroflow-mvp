@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_MODEL } from "@/lib/intake/constants";
+import { DEFAULT_MODEL, MAX_DRAFT_CHARS } from "@/lib/intake/constants";
 import { draftReply, loadDraftPrompt, replySubject } from "@/lib/intake/draft";
 
 export const maxDuration = 60;
@@ -47,6 +47,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const b = await req.json().catch(() => null);
   const body = typeof b?.draftBody === "string" ? b.draftBody.trim() : "";
   if (!body) return NextResponse.json({ error: "The reply is empty" }, { status: 400 });
+  if (body.length > MAX_DRAFT_CHARS) return NextResponse.json({ error: `The reply is too long (over ${MAX_DRAFT_CHARS} characters).` }, { status: 413 });
   const q = await prisma.inquiry.findUnique({ where: { id }, select: { subject: true } });
   if (!q) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const updated = await prisma.inquiry.update({

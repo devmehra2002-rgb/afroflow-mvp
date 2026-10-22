@@ -7,6 +7,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id } = await params;
-  const u = await prisma.inquiry.update({ where: { id }, data: { repliedAt: new Date() } });
-  return NextResponse.json({ id: u.id, repliedAt: u.repliedAt });
+  const when = new Date();
+  const r = await prisma.inquiry.updateMany({ where: { id }, data: { repliedAt: when } });
+  if (r.count === 0) return NextResponse.json({ error: "Inquiry not found" }, { status: 404 });
+  return NextResponse.json({ id, repliedAt: when });
 }
