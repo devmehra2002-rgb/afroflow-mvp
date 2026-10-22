@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     customer: customer ? { id: customer.id, name: customer.name } : null,
     openOrders,
     previousOrderUnresolved: unresolved,
-    repeatOrderInferred: productInferred,
+    repeatOrderResolved: !unresolved,
   });
 
   const inquiry = await prisma.inquiry.create({

@@ -30,7 +30,7 @@ export interface RouteInput {
   customer: { id: string; name: string } | null; // matched by exact sender email
   openOrders: OpenOrderRef[];                     // this customer's unfinished orders
   previousOrderUnresolved?: boolean;              // says "same as last order" but there is none
-  repeatOrderInferred?: boolean;                  // the product was filled in from this customer's last order
+  repeatOrderResolved?: boolean;                  // says "same as last order" and the earlier order WAS found (product named or copied)
   threshold?: number;
 }
 
@@ -72,7 +72,7 @@ export function routeInquiry(input: RouteInput): RouteResult {
 
   // 4. Not sure enough. (A known customer plainly repeating their last order gets a lower bar,
   //    because such emails are short by nature and the product was filled in from their history.)
-  const repeat = !!(customer && extraction.refersToPreviousOrder && input.repeatOrderInferred && extraction.isBuyerEnquiry.confidence >= threshold);
+  const repeat = !!(customer && extraction.refersToPreviousOrder && input.repeatOrderResolved && extraction.isBuyerEnquiry.confidence >= threshold);
   const bar = repeat ? Math.min(threshold, REPEAT_ORDER_THRESHOLD) : threshold;
   if (extraction.overallConfidence < bar) {
     return { status: "NEEDS_REVIEW", routeReason: `Overall confidence ${extraction.overallConfidence.toFixed(2)} is below the ${bar} threshold.` };

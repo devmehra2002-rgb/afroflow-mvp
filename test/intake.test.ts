@@ -114,13 +114,13 @@ const args = { prompt: "p", from: "a@b.com", subject: "s", body: "b", today: "20
 // ---- fix: known customer repeating their last order ("same as last time") ----
 {
   const rep = (over: Partial<Enquiry>) => enquiry({ refersToPreviousOrder: true, ...over });
-  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: velez, repeatOrderInferred: true }).status, "EXISTING_CUSTOMER", "clear repeat order from a known customer passes a lower bar (0.45)");
-  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.39 }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "but not below 0.4");
-  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: velez, repeatOrderInferred: false }).status, "NEEDS_REVIEW", "no inferred product: normal bar applies");
-  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: null, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "an UNKNOWN sender never gets the lower bar");
-  eq(routeInquiry({ ...base, extraction: enquiry({ overallConfidence: 0.45, refersToPreviousOrder: false }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "the email must actually refer to a previous order");
-  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45, isBuyerEnquiry: { value: true, confidence: 0.5 } }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "and the AI must be sure it is a buyer enquiry");
-  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.9, isBuyerEnquiry: { value: false, confidence: 0.99 } }), customer: velez, repeatOrderInferred: true }).status, "NEEDS_REVIEW", "a non-buyer is still a non-buyer");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: velez, repeatOrderResolved: true }).status, "EXISTING_CUSTOMER", "clear repeat order from a known customer passes a lower bar (0.45)");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.39 }), customer: velez, repeatOrderResolved: true }).status, "NEEDS_REVIEW", "but not below 0.4");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: velez, repeatOrderResolved: false }).status, "NEEDS_REVIEW", "previous order not found: normal bar applies");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45 }), customer: null, repeatOrderResolved: true }).status, "NEEDS_REVIEW", "an UNKNOWN sender never gets the lower bar");
+  eq(routeInquiry({ ...base, extraction: enquiry({ overallConfidence: 0.45, refersToPreviousOrder: false }), customer: velez, repeatOrderResolved: true }).status, "NEEDS_REVIEW", "the email must actually refer to a previous order");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.45, isBuyerEnquiry: { value: true, confidence: 0.5 } }), customer: velez, repeatOrderResolved: true }).status, "NEEDS_REVIEW", "and the AI must be sure it is a buyer enquiry");
+  eq(routeInquiry({ ...base, extraction: rep({ overallConfidence: 0.9, isBuyerEnquiry: { value: false, confidence: 0.99 } }), customer: velez, repeatOrderResolved: true }).status, "NEEDS_REVIEW", "a non-buyer is still a non-buyer");
 }
 
 // ---- fix: long emails keep their start AND their end ----
