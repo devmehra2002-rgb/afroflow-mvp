@@ -74,7 +74,8 @@ npx tsx test/intake.test.ts     # 45 checks: routing rules, sender parsing, Gmai
 npx tsx test/scanner.test.ts    # document scanner comparison logic
 npx tsx test/extract.test.ts
 npx tsx test/draft.test.ts      # step 3: reply drafter (12 checks)
-npx tsx test/proforma.test.ts   # step 4: proforma maths, validation, PDF (41 checks)
+npx tsx test/proforma.test.ts   # step 4: proforma maths, numbering, words, paste import, PDF
+npx tsx test/allowlist.test.ts  # who may sign in
 node test-logic.mjs             # order features
 ```
 
@@ -110,4 +111,6 @@ On every open buyer enquiry, **Draft reply with AI** asks Claude for a short fir
 
 Each order has a **Proforma** tab, pre-filled from the order. A person enters the agreed unit price (AI never sets a price), plain code adds up the totals, and **Download PDF** produces a real PDF, watermarked DRAFT until approved. **Approve** locks the invoice, logs it as the order's Proforma Invoice document (which ticks off the *Issue Proforma Invoice* task) and writes to the order's activity log. A locked invoice can be reopened as a numbered revision (PI-2026-021-R1). Nothing is sent to the buyer automatically.
 
-Company details on the PDF come from environment variables, never from the code: `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_EMAIL`, `COMPANY_IEC`, `COMPANY_GSTIN`, `COMPANY_BANK` (use `\n` for line breaks). Anything unset is left off the invoice.
+Company details on the PDF come from environment variables, never from the code: `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_FAX`, `COMPANY_EMAIL`, `COMPANY_IEC`, `COMPANY_GSTIN`, `COMPANY_BANK`, `COMPANY_SIGNATORY`, `COMPANY_PROFORMA_PREFIX` (use `\n` for line breaks). Anything unset is left off the invoice.
+
+The PDF carries: company header (address, tel, fax, email, tax numbers), invoice number in a financial-year series (`PREFIX/2026-27/101`), date, buyer reference, buyer name/address/phone/email, price basis, origin, ports, payment, shipment, delivery time, packing, numbered items with item codes and section headings (hundreds of lines, many pages), total, total in words, bank details, notes, terms, signature block and page numbers. Items can be pasted straight from Excel.

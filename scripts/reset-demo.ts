@@ -12,11 +12,12 @@ async function main() {
   console.log("activity notes removed:", (await prisma.orderActivity.deleteMany({})).count);
   console.log("inquiries removed:", (await prisma.inquiry.deleteMany({})).count);
   console.log("proformas removed:", (await prisma.orderProforma.deleteMany({})).count);
+  await prisma.$executeRawUnsafe(`ALTER SEQUENCE "ProformaSeq" RESTART WITH 1`); // invoice numbers start again at 1
   // approving a proforma logs "PI-….pdf" as the order's Proforma Invoice document: take those back out
   let cleaned = 0;
   for (const o of await prisma.opsOrder.findMany({ select: { id: true, data: true } })) {
     const data = (o.data ?? {}) as { documents?: { docType: string; fileName: string }[] };
-    const keep = (data.documents ?? []).filter((d) => !(d.docType === "Proforma Invoice" && /^PI-\d{4}-\d{3}(-R\d+)?\.pdf$/.test(d.fileName)));
+    const keep = (data.documents ?? []).filter((d) => !(d.docType === "Proforma Invoice" && /^[A-Za-z0-9]+-\d{4}-\d{2}-\d+(-R\d+)?\.pdf$/.test(d.fileName)));
     if (keep.length !== (data.documents ?? []).length) {
       await prisma.opsOrder.update({ where: { id: o.id }, data: { data: { ...data, documents: keep } } });
       cleaned++;

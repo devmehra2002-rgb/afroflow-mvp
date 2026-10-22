@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { defaultProforma, proformaNumber, sanitizeProforma } from "@/lib/proforma/calc";
+import { loadCompany } from "@/lib/proforma/company";
 import { proformaView } from "@/lib/proforma/view";
 
 // GET /api/orders/:id/proforma — the saved proforma, or a fresh first draft built
@@ -15,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (order.proforma) return NextResponse.json({ ...proformaView(order.proforma, true), orderValue: order.value });
   const today = new Date().toISOString().slice(0, 10);
   return NextResponse.json({
-    saved: false, number: proformaNumber(order.id), version: 1, status: "DRAFT", approvedBy: null, approvedAt: null, orderValue: order.value,
+    saved: false, number: null, version: 1, status: "DRAFT", approvedBy: null, approvedAt: null, orderValue: order.value,
     data: defaultProforma({ id: order.id, customerName: order.customerName, country: order.country, product: order.product, qty: order.qty, value: order.value, terms: order.terms }, today),
   });
 }
@@ -31,10 +32,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (order.proforma?.status === "APPROVED") return NextResponse.json({ error: "This proforma is approved and locked. Reopen it as a revision to change it." }, { status: 409 });
   const { data, errors } = sanitizeProforma(await req.json().catch(() => null));
   if (!data) return NextResponse.json({ error: errors.join(" ") }, { status: 400 });
-  const saved = await prisma.orderProforma.upsert({
-    where: { orderId: id },
-    create: { orderId: id, number: proformaNumber(id), data: data as object },
-    update: { data: data as object, updatedAt: new Date() },
-  });
+  let saved;
+  if (order.proforma) {
+    saved = await prisma.orderProforma.update({ where: { orderId: id }, data: { data: data as object, updatedAt: new Date() } });
+  } else {
+    // first save: take the next number in the company's series
+    const [{ n }] = await prisma.$queryRaw<{ n: bigint }[]>`SELECT nextval('"ProformaSeq"') AS n`;
+    saved = await prisma.orderProforma.create({
+      data: { orderId: id, number: proformaNumber(loadCompany().numberPrefix, data.issueDate, Number(n)), data: data as object },
+    });
+  }
   return NextResponse.json({ ...proformaView(saved, true), orderValue: order.value });
 }

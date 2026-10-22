@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sanitizeProforma } from "@/lib/proforma/calc";
+import { fileSafe, sanitizeProforma } from "@/lib/proforma/calc";
 import { loadCompany } from "@/lib/proforma/company";
 import { buildProformaPdf } from "@/lib/proforma/pdf";
 
@@ -17,6 +17,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!data) return NextResponse.json({ error: errors.join(" ") }, { status: 400 });
   const bytes = await buildProformaPdf({ number: p.number, orderId: id, data, company: loadCompany(), approved: p.status === "APPROVED" });
   return new NextResponse(Buffer.from(bytes), {
-    headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${p.number}.pdf"`, "Cache-Control": "no-store" },
+    headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${fileSafe(p.number)}.pdf"`, "Cache-Control": "no-store" },
   });
 }

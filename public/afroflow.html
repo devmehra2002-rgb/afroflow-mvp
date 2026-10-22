@@ -1137,7 +1137,7 @@ let activeTab = 'overview';
 // ---- Step 4: proforma invoice (a person types the agreed prices; plain code adds them up; a person approves) ----
 const PROFORMA = {};   // orderId -> {state, ...server data, dirty, confirming}
 const PF_CURRENCIES = ['USD','EUR','INR'];
-function pfAmount(l){ return Math.round(((+l.quantity||0)*(+l.unitPrice||0)+Number.EPSILON)*100)/100; }
+function pfAmount(l){ return l.heading ? 0 : Math.round(((+l.quantity||0)*(+l.unitPrice||0)+Number.EPSILON)*100)/100; }
 function pfTotals(d){
   const total = Math.round((d.lines.reduce((s,l)=>s+pfAmount(l),0)+Number.EPSILON)*100)/100;
   const rate = +d.exchangeRateToInr>0 ? +d.exchangeRateToInr : null;
@@ -1145,6 +1145,7 @@ function pfTotals(d){
   return {total, inr};
 }
 const pfMoney = (n,cur)=> cur+' '+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const PF_GRID = 'grid-template-columns:110px minmax(150px,3fr) 80px 60px 90px 90px 28px;';
 async function pfLoad(id, retried){
   PROFORMA[id] = {state:'loading'};
   try{
@@ -1157,13 +1158,14 @@ async function pfLoad(id, retried){
 }
 function pfRerender(id){
   const o = ORDERS.find(x=>x.id===id); const el = document.getElementById('tabContent');
-  if(o && el && activeTab==='proforma') el.innerHTML = renderOrderTab(o,'proforma');
+  if(o && el && activeTab==='proforma'){ const y = window.scrollY; el.innerHTML = renderOrderTab(o,'proforma'); window.scrollTo(0,y); }
 }
 function pfTotalsHtml(p){
   const d = p.data, t = pfTotals(d);
+  const items = d.lines.filter(l=>!l.heading).length;
   const mismatch = d.currency==='USD' && typeof p.orderValue==='number' && p.orderValue>0 && Math.abs(t.total-p.orderValue)>0.005
     ? `<div style="font-size:11.5px; color:var(--warn-text); margin-top:6px;">⚠ The order value in AfroFlow is ${pfMoney(p.orderValue,'USD')}. This invoice totals ${pfMoney(t.total,'USD')}.</div>` : '';
-  return `<div style="display:flex; justify-content:flex-end; gap:24px; align-items:baseline;"><span style="font-size:12px; color:var(--text-muted);">Total (${d.currency})</span><span class="mono" style="font-size:18px; font-weight:700;">${pfMoney(t.total,d.currency)}</span></div>
+  return `<div style="display:flex; justify-content:flex-end; gap:24px; align-items:baseline;"><span style="font-size:12px; color:var(--text-muted);">${items} item${items===1?'':'s'} · Total (${esc(d.incoterm?d.incoterm+' ':'')}${d.currency})</span><span class="mono" style="font-size:18px; font-weight:700;">${pfMoney(t.total,d.currency)}</span></div>
     ${d.currency!=='INR' ? `<div style="display:flex; justify-content:flex-end; gap:24px; font-size:12px; color:var(--text-muted); margin-top:4px;"><span>≈ INR${+d.exchangeRateToInr>0?' @ '+esc(d.exchangeRateToInr):' (enter a rate)'}</span><span class="mono">${t.inr!==null?pfMoney(t.inr,'INR'):'—'}</span></div>`:''}${mismatch}`;
 }
 function proformaTab(o){
@@ -1172,50 +1174,64 @@ function proformaTab(o){
   if(p.state==='error') return `<div class="card"><div class="empty">${esc(p.message)}</div></div>`;
   const d = p.data, lock = p.status==='APPROVED', dis = lock?'disabled':'';
   const inp = (label, key, opts) => { opts = opts||{}; return `<label style="display:block; ${opts.wide?'grid-column:1/-1;':''}"><div class="dg-label" style="margin-bottom:4px;">${label}</div>${opts.area
-    ? `<textarea data-pf="${key}" rows="2" ${dis} style="width:100%; box-sizing:border-box; font-family:inherit; font-size:13px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; resize:vertical;">${esc(d[key]||'')}</textarea>`
+    ? `<textarea data-pf="${key}" rows="${opts.rows||2}" ${dis} style="width:100%; box-sizing:border-box; font-family:inherit; font-size:13px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; resize:vertical;">${esc(d[key]||'')}</textarea>`
     : `<input class="select" data-pf="${key}" type="${opts.type||'text'}" ${opts.step?`step="${opts.step}"`:''} ${dis} value="${esc(d[key]==null?'':d[key])}" placeholder="${esc(opts.ph||'')}" style="width:100%; box-sizing:border-box;">`}</label>`; };
   const cur = `<label style="display:block;"><div class="dg-label" style="margin-bottom:4px;">Currency</div><select class="select" data-pf="currency" ${dis} style="width:100%;">${PF_CURRENCIES.map(c=>`<option ${c===d.currency?'selected':''}>${c}</option>`).join('')}</select></label>`;
   const stepIdx = STEPS.findIndex(s=>s.label==='Issue Proforma Invoice');
   const reached = stepIdx <= o.doneCount;
-  const lineRows = d.lines.map((l,i)=>`<div style="display:grid; grid-template-columns:minmax(160px,3fr) 90px 80px 70px 100px 90px 28px; gap:8px; align-items:center; margin-bottom:8px;">
+  const rm = i => (!lock && d.lines.length>1) ? `<button class="btn" style="padding:2px 8px;" data-pf-act="rmline:${i}" title="Remove line">×</button>` : '<span></span>';
+  const lineRows = d.lines.map((l,i)=> l.heading
+    ? `<div style="display:grid; grid-template-columns:1fr 28px; gap:8px; align-items:center; margin:12px 0 8px;">
+        <input class="select" data-pf-line="${i}.description" ${dis} value="${esc(l.description)}" placeholder="Section heading, e.g. a brand or product group" style="font-weight:700;">${rm(i)}</div>`
+    : `<div style="display:grid; ${PF_GRID} gap:8px; align-items:center; margin-bottom:8px;">
+      <input class="select" data-pf-line="${i}.code" ${dis} value="${esc(l.code)}" placeholder="Item code">
       <input class="select" data-pf-line="${i}.description" ${dis} value="${esc(l.description)}" placeholder="Description">
-      <input class="select" data-pf-line="${i}.hsn" ${dis} value="${esc(l.hsn)}" placeholder="HSN">
       <input class="select" data-pf-line="${i}.quantity" type="number" min="0" step="any" ${dis} value="${esc(l.quantity)}" placeholder="Qty">
       <input class="select" data-pf-line="${i}.unit" ${dis} value="${esc(l.unit)}" placeholder="Unit">
       <input class="select" data-pf-line="${i}.unitPrice" type="number" min="0" step="any" ${dis} value="${esc(l.unitPrice)}" placeholder="Unit price">
-      <div class="mono" data-pf-amt="${i}" style="text-align:right; font-size:12.5px;">${pfAmount(l).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-      ${!lock && d.lines.length>1 ? `<button class="btn" style="padding:2px 8px;" data-pf-act="rmline:${i}" title="Remove line">×</button>`:'<span></span>'}
+      <div class="mono" data-pf-amt="${i}" style="text-align:right; font-size:12.5px;">${pfAmount(l).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>${rm(i)}
     </div>`).join('');
   const status = lock
     ? `<span class="pill pill-good">✓ Approved${p.approvedBy?' by '+esc(p.approvedBy):''}</span>`
     : `<span class="pill ${p.saved?'pill-neutral':'pill-warn'}">${p.saved?'Draft saved':'Draft · not saved yet'}${p.dirty?' · unsaved changes':''}</span>`;
   return `<div class="card" style="padding:18px 20px;" data-pf-order="${esc(o.id)}">
     <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
-      <h3 style="font-size:14px; margin:0;">Proforma Invoice <span class="mono" style="color:var(--text-muted); font-weight:500;">${esc(p.number)}</span></h3>${status}
+      <h3 style="font-size:14px; margin:0;">Proforma Invoice <span class="mono" style="color:var(--text-muted); font-weight:500;">${p.number?esc(p.number):'(number is given when you first save)'}</span></h3>${status}
     </div>
     <div style="font-size:12.3px; color:var(--text-muted); margin-bottom:14px;">${lock
       ? 'Approved and locked. To change anything, reopen it as a revision.'
       : 'Pre-filled from the order. <strong>You</strong> enter the agreed price: nothing here is guessed by AI. Nothing is sent to the buyer from this page.'}</div>
+    <div class="dg-label" style="margin-bottom:8px;">Buyer</div>
     <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px;">
-      ${inp('Buyer name','buyerName')}${inp('Buyer address','buyerAddress',{area:true})}
+      ${inp('Buyer name','buyerName')}${inp('Buyer address','buyerAddress',{area:true})}${inp('Buyer phone','buyerPhone')}${inp('Buyer email','buyerEmail',{type:'email'})}${inp('Buyer reference (“Your ref”)','buyerRef')}
+    </div>
+    <div class="dg-label" style="margin:18px 0 8px;">Price and shipping terms</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px;">
       ${cur}${inp('Exchange rate (INR per 1 '+esc(d.currency)+')','exchangeRateToInr',{type:'number',step:'any',ph:d.currency==='INR'?'not needed':'optional'})}
-      ${inp('Incoterm','incoterm',{ph:'e.g. CIF'})}${inp('Port of loading','portOfLoading')}${inp('Port of discharge','portOfDischarge')}
-      ${inp('Payment terms','paymentTerms')}${inp('Issue date','issueDate',{type:'date'})}${inp('Valid until','validUntil',{type:'date'})}
+      ${inp('Incoterm / price basis','incoterm',{ph:'e.g. FOB or CIF'})}${inp('Country of origin','countryOfOrigin')}
+      ${inp('Port of loading','portOfLoading')}${inp('Port of discharge','portOfDischarge')}
+      ${inp('Payment terms','paymentTerms',{ph:'e.g. by TT against BL copy'})}${inp('Shipment','shipmentMode',{ph:'e.g. By sea'})}${inp('Delivery time','deliveryTime',{ph:'e.g. within 4 to 6 weeks'})}${inp('Packing','packing')}
+      ${inp('Issue date','issueDate',{type:'date'})}${inp('Valid until','validUntil',{type:'date'})}
     </div>
     <div class="dg-label" style="margin:18px 0 8px;">Items</div>
-    <div style="display:grid; grid-template-columns:minmax(160px,3fr) 90px 80px 70px 100px 90px 28px; gap:8px; font-size:10.5px; color:var(--text-muted); margin-bottom:4px;"><span>Description</span><span>HSN</span><span>Qty</span><span>Unit</span><span>Unit price</span><span style="text-align:right;">Amount</span><span></span></div>
+    <div style="display:grid; ${PF_GRID} gap:8px; font-size:10.5px; color:var(--text-muted); margin-bottom:4px;"><span>Item code</span><span>Description</span><span>Qty</span><span>Unit</span><span>Unit price</span><span style="text-align:right;">Amount</span><span></span></div>
     ${lineRows}
-    ${lock?'':`<button class="btn" style="font-size:12px; padding:4px 10px;" data-pf-act="addline">+ Add line</button>`}
+    ${lock?'':`<div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn" style="font-size:12px; padding:4px 10px;" data-pf-act="addline">+ Add item</button><button class="btn" style="font-size:12px; padding:4px 10px;" data-pf-act="addheading">+ Add section heading</button></div>
+    <details style="margin-top:10px;"${p.importOpen?' open':''}><summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-2);">Paste many items from Excel</summary>
+      <div style="font-size:11.5px; color:var(--text-muted); margin:6px 0;">Copy rows in Excel with four columns in this order: <strong>Item code, Description, Qty, Unit price</strong>, then paste below. A row with only one filled cell becomes a section heading. Rows with a missing or unclear number are skipped and counted.</div>
+      <textarea id="pfImportText" rows="5" placeholder="Paste here…" style="width:100%; box-sizing:border-box; font-family:ui-monospace,monospace; font-size:12px; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px;"></textarea>
+      <button class="btn" style="margin-top:6px; font-size:12px; padding:4px 10px;" data-pf-act="import">Add pasted items</button></details>`}
     <div id="pfTotals" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">${pfTotalsHtml(p)}</div>
-    <div style="margin-top:14px;">${inp('Notes (printed on the invoice)','notes',{area:true,wide:true})}</div>
+    <div style="margin-top:14px; display:grid; gap:12px;">${inp('Notes (printed on the invoice)','notes',{area:true,wide:true})}${inp('Terms and conditions (printed on the invoice)','termsText',{area:true,wide:true,rows:3})}</div>
     <div id="pfMsg" style="font-size:12px; color:var(--crit-text); margin-top:10px; min-height:14px;"></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; align-items:center;">
       ${lock ? `<button class="btn btn-primary" data-pf-act="pdf">Download PDF</button><button class="btn" data-pf-act="reopen">Reopen as revision</button>`
-      : p.confirming ? `<span style="font-size:12.5px; font-weight:600;">Approve ${esc(p.number)} for ${pfMoney(pfTotals(d).total,d.currency)}?</span><button class="btn btn-primary" data-pf-act="approve-yes">Yes, approve</button><button class="btn" data-pf-act="approve-no">Cancel</button>`
+      : p.confirming ? `<span style="font-size:12.5px; font-weight:600;">Approve ${p.number?esc(p.number):'this invoice'} for ${pfMoney(pfTotals(d).total,d.currency)}?</span><button class="btn btn-primary" data-pf-act="approve-yes">Yes, approve</button><button class="btn" data-pf-act="approve-no">Cancel</button>`
       : `<button class="btn btn-primary" data-pf-act="save">Save draft</button><button class="btn" data-pf-act="pdf">Download PDF (draft)</button><button class="btn" data-pf-act="approve">Approve…</button>`}
     </div>
-    ${lock && !reached ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:10px;">The task “Issue Proforma Invoice” isn't reached yet, so the invoice is approved but not yet logged as the order's document.</div>`:''}
-    ${!lock ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:10px;">Approving locks this invoice and logs it as the order's Proforma Invoice${reached?', which ticks off the “Issue Proforma Invoice” task':''}.</div>`:''}
+    <div style="font-size:11.5px; color:var(--text-muted); margin-top:10px;">Your company's address, phone, tax numbers, bank details and signatory are printed from settings, not typed here.</div>
+    ${lock && !reached ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:6px;">The task “Issue Proforma Invoice” isn't reached yet, so the invoice is approved but not yet logged as the order's document.</div>`:''}
+    ${!lock ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:6px;">Approving locks this invoice and logs it as the order's Proforma Invoice${reached?', which ticks off the “Issue Proforma Invoice” task':''}.</div>` : ''}
   </div>`;
 }
 function pfMsg(t){ const el=document.getElementById('pfMsg'); if(el) el.textContent=t||''; }
@@ -1235,7 +1251,24 @@ async function pfSave(id){
 }
 async function pfAction(id, act){
   const p = PROFORMA[id]; if(!p||p.state!=='ready') return;
-  if(act==='addline'){ p.data.lines.push({description:'',hsn:'',quantity:1,unit:'units',unitPrice:0}); p.dirty=true; pfRerender(id); return; }
+  if(act==='addline'){ p.data.lines.push({code:'',description:'',hsn:'',quantity:1,unit:'units',unitPrice:0}); p.dirty=true; pfRerender(id); return; }
+  if(act==='addheading'){ p.data.lines.push({heading:true,code:'',description:'',hsn:'',quantity:0,unit:'',unitPrice:0}); p.dirty=true; pfRerender(id); return; }
+  if(act==='import'){
+    const ta = document.getElementById('pfImportText'); const text = ta ? ta.value : '';
+    if(!text.trim()){ pfMsg('Paste some rows first.'); return; }
+    try{
+      const res = await fetch('/api/proforma/parse-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+      const j = await res.json(); if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
+      if(!j.lines.length){ pfMsg('No usable rows found. Use four columns: Item code, Description, Qty, Unit price.'); return; }
+      // a lone untouched starter line is replaced by the pasted items
+      const only = p.data.lines.length===1 && !p.data.lines[0].heading && +p.data.lines[0].unitPrice===0 ? p.data.lines : null;
+      if(only) p.data.lines.length = 0;
+      p.data.lines.push(...j.lines); p.dirty = true; p.importOpen = false; pfRerender(id);
+      const n = j.lines.filter(l=>!l.heading).length, h = j.lines.length-n;
+      showToast('Added '+n+' item'+(n===1?'':'s')+(h?' and '+h+' heading'+(h===1?'':'s'):'')+(j.skipped?'. Skipped '+j.skipped+' unclear row'+(j.skipped===1?'':'s')+'.':'.'));
+    }catch(e){ pfMsg(e.message||'Could not read the pasted rows.'); }
+    return;
+  }
   if(act.startsWith('rmline:')){ p.data.lines.splice(+act.split(':')[1],1); p.dirty=true; pfRerender(id); return; }
   if(act==='save'){ if(await pfSave(id)) showToast('Draft saved.'); return; }
   if(act==='pdf'){
@@ -1251,7 +1284,7 @@ async function pfAction(id, act){
       PROFORMA[id] = {...PROFORMA[id], ...r, dirty:false, confirming:false};
       delete ACTIVITY_CACHE[id];
       const o = ORDERS.find(x=>x.id===id);
-      if(o){ uploadLinkedDocument(id,'Proforma Invoice', r.number+'.pdf'); } // logs the document and ticks the task
+      if(o){ uploadLinkedDocument(id,'Proforma Invoice', r.number.replace(/[^A-Za-z0-9._-]+/g,'-')+'.pdf'); } // logs the document and ticks the task
       pfRerender(id); showToast('Proforma '+r.number+' approved.');
     }catch(e){ PROFORMA[id].confirming=false; pfRerender(id); pfMsg(e.message); }
     return;
