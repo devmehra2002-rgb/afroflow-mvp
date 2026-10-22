@@ -13,6 +13,7 @@ export interface BolnaExecution {
   transcript?: string | null;
   extracted_data?: unknown;
   error_message?: string | null;
+  answered_by_voice_mail?: boolean | null;
   telephony_data?: { recording_url?: string | null } | null;
 }
 
@@ -58,6 +59,10 @@ export function mapExecution(e: BolnaExecution): { status: AttemptStatus; messag
   if (s === "busy") return { status: "BUSY", message: FRIENDLY.busy };
   if (FAILED.has(s)) return { status: "FAILED", message: FRIENDLY[s] ?? e.error_message ?? "The call failed." };
   if (s === "completed") {
+    // Bolna's own voicemail detection hung up: tell the person, because it can misfire on a real person
+    if (e.answered_by_voice_mail === true && !/^\s*user\s*:/im.test(e.transcript ?? "")) {
+      return { status: "NO_CONVERSATION", message: "Bolna thought this was a voicemail and hung up. If a person answered, turn off Voicemail Detection in the agent's Calling tab and try again." };
+    }
     const spoke = /^\s*user\s*:/im.test(e.transcript ?? "");
     if (!(Number(e.conversation_duration) > 0) || !spoke) return { status: "NO_CONVERSATION", message: "The call connected but the buyer did not speak, so there is nothing to read." };
     return { status: "DONE", message: null };

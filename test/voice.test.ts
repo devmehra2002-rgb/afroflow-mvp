@@ -104,6 +104,9 @@ async function main() {
   check(mapExecution({ status: "completed", conversation_duration: 0, transcript: GOOD_TRANSCRIPT }).status === "NO_CONVERSATION", "completed with zero seconds = nothing to read");
   check(mapExecution({ status: "completed", conversation_duration: 30, transcript: "assistant: Hello?\nassistant: Hello?" }).status === "NO_CONVERSATION", "completed but the buyer never spoke");
   check(mapExecution({ status: "completed", conversation_duration: 30, transcript: null }).status === "NO_CONVERSATION", "completed with no transcript");
+  const vm = mapExecution({ status: "completed", conversation_duration: 9, transcript: "assistant: Hello?\n", answered_by_voice_mail: true });
+  check(vm.status === "NO_CONVERSATION" && /Voicemail Detection/.test(vm.message ?? ""), "a voicemail hang-up is explained, with what to change");
+  check(mapExecution({ status: "completed", conversation_duration: 30, transcript: GOOD_TRANSCRIPT, answered_by_voice_mail: true }).status === "DONE", "if the buyer did speak, voicemail flag does not discard the call");
   check(mapExecution({ status: "something-new" }).status === "CALLING" && mapExecution({}).status === "CALLING", "unknown status = keep waiting");
 
   // ---- extraction (fake AI) ----
