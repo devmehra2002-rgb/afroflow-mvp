@@ -1,0 +1,13 @@
+import { devUserEmail } from "../src/lib/devAuth";
+let passed = 0, failed = 0;
+const check = (c: boolean, l: string) => { if (c) passed++; else { failed++; console.error("FAIL:", l); } };
+const on = { NODE_ENV: "development", LOCAL_DEV_AUTH: "1", LOCAL_DEV_EMAIL: " Me@Example.com " };
+check(devUserEmail(on) === "me@example.com", "on with all conditions, email tidied");
+check(devUserEmail({}) === null, "off by default");
+check(devUserEmail({ ...on, NODE_ENV: "production" }) === null, "NEVER in production");
+check(devUserEmail({ ...on, NODE_ENV: undefined }) === null && devUserEmail({ ...on, NODE_ENV: "test" }) === null, "only the exact word development");
+check(devUserEmail({ ...on, VERCEL: "1" }) === null && devUserEmail({ ...on, VERCEL_ENV: "preview" }) === null, "never on Vercel, even in development mode");
+check(devUserEmail({ ...on, LOCAL_DEV_AUTH: undefined }) === null && devUserEmail({ ...on, LOCAL_DEV_AUTH: "true" }) === null && devUserEmail({ ...on, LOCAL_DEV_AUTH: "0" }) === null, "needs LOCAL_DEV_AUTH=1 exactly");
+check(devUserEmail({ ...on, LOCAL_DEV_EMAIL: undefined }) === null && devUserEmail({ ...on, LOCAL_DEV_EMAIL: "not-an-email" }) === null && devUserEmail({ ...on, LOCAL_DEV_EMAIL: "" }) === null, "needs a real email");
+console.log(`devauth tests: ${passed} passed, ${failed} failed`);
+if (failed) process.exit(1);

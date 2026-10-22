@@ -76,6 +76,8 @@ npx tsx test/extract.test.ts
 npx tsx test/draft.test.ts      # step 3: reply drafter (12 checks)
 npx tsx test/proforma.test.ts   # step 4: proforma maths, numbering, words, paste import, PDF
 npx tsx test/allowlist.test.ts  # who may sign in
+npx tsx test/voice.test.ts      # voice-call trial rules, Bolna requests, extraction, pre-fill
+npx tsx test/devauth.test.ts    # the local-only login shortcut can never switch on in production
 node test-logic.mjs             # order features
 ```
 
@@ -114,3 +116,9 @@ Each order has a **Proforma** tab, pre-filled from the order. A person enters th
 Company details on the PDF come from environment variables, never from the code: `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_FAX`, `COMPANY_EMAIL`, `COMPANY_IEC`, `COMPANY_GSTIN`, `COMPANY_BANK`, `COMPANY_SIGNATORY`, `COMPANY_PROFORMA_PREFIX` (use `\n` for line breaks). Anything unset is left off the invoice.
 
 The PDF carries: company header (address, tel, fax, email, tax numbers), invoice number in a financial-year series (`PREFIX/2026-27/101`), date, buyer reference, buyer name/address/phone/email, price basis, origin, ports, payment, shipment, delivery time, packing, numbered items with item codes and section headings (hundreds of lines, many pages), total, total in words, bank details, notes, terms, signature block and page numbers. Items can be pasted straight from Excel.
+
+## Voice-call trial (local only)
+
+On a new-customer inquiry you can have an AI assistant phone the buyer (through Bolna) to collect the details a proforma needs. It is a **local trial**: the feature exists only when `BOLNA_API_KEY` and `BOLNA_AGENT_ID` are set and the app runs in development (`npm run dev:local`); a production build keeps it off. A person types the number and ticks that the buyer agreed to be called; only `NEW_CUSTOMER` inquiries, max 3 attempts, 10 minutes apart. The call's transcript is read by Claude into fields with confidence scores, a person reviews and saves them, and they pre-fill the proforma when the inquiry is converted to an order. No bank or payment details are asked for. Set-up of the Bolna agent: `docs/bolna-agent-prompt.md`. Try the whole flow with no real call: `npx tsx scripts/fake-voice-servers.ts`.
+
+`npm run dev:local` also enables a login shortcut for your own computer (`LOCAL_DEV_AUTH=1` and `LOCAL_DEV_EMAIL` in `.env.local`) because the Google sign-in keys exist only on Vercel. It cannot switch on in a production build or on Vercel.

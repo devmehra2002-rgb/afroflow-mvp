@@ -6,7 +6,8 @@
     "dev": "next dev -p 3002",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "dev:local": "VERCEL= VERCEL_ENV= VERCEL_TARGET_ENV= AUTH_URL= AUTH_TRUST_HOST=true next dev -p 3002"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

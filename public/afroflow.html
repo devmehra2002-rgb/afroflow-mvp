@@ -1893,6 +1893,7 @@ function inquiryCard(q, opts){
     <details style="margin-top:10px;"><summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-2);">Original email</summary>
       <pre style="white-space:pre-wrap; font-family:inherit; font-size:12.5px; background:var(--surface-2); border-radius:8px; padding:10px 12px; margin:8px 0 0;">${esc(q.bodyText||'')}</pre></details>
     ${open ? draftSection(q) : ''}
+    ${open ? voiceSection(q) : ''}
     ${open ? `<div style="display:flex; gap:8px; margin-top:12px;">
       <button class="btn btn-primary" data-convert-inquiry="${esc(q.id)}">Convert to order</button>
       <button class="btn" data-dismiss-inquiry="${esc(q.id)}">Dismiss</button>
@@ -1958,6 +1959,102 @@ async function markReplied(id){
   try{ await draftApi(id,'POST',null,'/replied'); }catch(e){ showToast('Could not update — check your connection.'); }
   await loadInquiries(); route();
 }
+
+// ---- Voice calls to NEW customers (local trial). Only shows when the server says it is switched on. ----
+const VOICE = {enabled:false};
+const VOICE_CALLS = {};   // inquiryId -> attempts, newest first
+const VOICE_EDITS = {};   // unsaved typing so a refresh never wipes it
+const VOICE_BUSY = {};
+const CALL_FIELDS = [['buyerCompany','Company'],['contactPerson','Contact person'],['buyerAddress','Address'],['buyerPhone','Phone'],['buyerEmail','Email'],['destinationPort','Destination port'],['incoterm','Incoterm'],['paymentTerms','Payment terms'],['product','Product'],['quantity','Quantity'],['deliveryTime','Delivery time'],['notes','Notes']];
+const CALL_MAX = 3;
+const CALL_STATUS_TEXT = {NO_ANSWER:'Nobody answered.', BUSY:'The line was busy.', NO_CONVERSATION:'The call connected but the buyer did not speak.', FAILED:'The call failed.'};
+async function voiceLoad(id){
+  try{
+    const r = await fetch('/api/inquiries/'+encodeURIComponent(id)+'/call'); if(!r.ok) return false;
+    const j = await r.json(); const before = JSON.stringify(VOICE_CALLS[id]||[]); VOICE_CALLS[id] = j.attempts||[];
+    return before !== JSON.stringify(VOICE_CALLS[id]);
+  }catch(e){ return false; }
+}
+async function voiceInit(){
+  try{ const r = await fetch('/api/voice/status'); VOICE.enabled = r.ok && (await r.json()).enabled===true; }catch(e){ VOICE.enabled = false; }
+  if(!VOICE.enabled) return;
+  await Promise.all(INQUIRIES.filter(q=>q.status==='NEW_CUSTOMER').map(q=>voiceLoad(q.id)));
+  route();
+}
+async function voicePoll(){
+  if(!VOICE.enabled || document.hidden) return;
+  const ids = Object.keys(VOICE_CALLS).filter(id=>(VOICE_CALLS[id]||[]).some(a=>a.status==='CALLING'||(a.status==='DONE'&&!a.extracted&&!a.extractionError)));
+  if(!ids.length) return;
+  const ch = (await Promise.all(ids.map(voiceLoad))).some(Boolean);
+  if(ch && /^#\/(inquiries|customers)/.test(location.hash) && !document.getElementById('modalBack')){ const y=window.scrollY; route(); window.scrollTo(0,y); }
+}
+setInterval(voicePoll, 5000);
+function voiceSection(q){
+  if(!VOICE.enabled || q.status!=='NEW_CUSTOMER') return '';
+  if(VOICE_CALLS[q.id]===undefined){ VOICE_CALLS[q.id]=[]; voiceLoad(q.id).then(ch=>{ if(ch) route(); }); }
+  const at = VOICE_CALLS[q.id]||[], id = esc(q.id), last = at[0]||null;
+  const wrap = body => `<div style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;" data-voice-card="${id}"><div style="font-size:12px; font-weight:600; color:var(--text-2); margin-bottom:6px;">📞 Collect proforma details by call <span class="pill pill-neutral" style="font-size:10px; margin-left:6px;">local trial</span></div>${body}</div>`;
+  if(last && last.status==='CALLING'){
+    return wrap(`<div style="font-size:13px;">Calling <strong>${esc(last.toPhone)}</strong>… <span style="color:var(--text-muted);">${esc(last.providerStatus||'starting')}</span></div><div style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">This page updates by itself. Please keep it open.</div>`);
+  }
+  const startForm = (label) => {
+    const phone = VOICE_EDITS[q.id+':phone']!==undefined ? VOICE_EDITS[q.id+':phone'] : (last?last.toPhone:'');
+    const consent = !!VOICE_EDITS[q.id+':consent'];
+    return `<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <input class="select" data-voice-phone="${id}" placeholder="+919876543210" value="${esc(phone)}" style="width:190px;">
+      <label style="font-size:12px; display:flex; gap:6px; align-items:center;"><input type="checkbox" data-voice-consent="${id}" ${consent?'checked':''}> The buyer agreed to a call from our AI assistant (the call is recorded)</label>
+      <button class="btn" data-voice-start="${id}" ${VOICE_BUSY[q.id]?'disabled':''}>${VOICE_BUSY[q.id]?'Starting…':label}</button></div>`;
+  };
+  if(!last) return wrap(`<div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">An AI assistant phones this new buyer and asks for the details a proforma needs. You review and save what it heard. Only with the buyer's agreement.</div>${startForm('Start call')}`);
+  if(last.status==='DONE'){
+    const ex = last.extracted || {}, ap = last.applied || {};
+    const pending = !last.extracted && !last.extractionError;
+    const val = k => VOICE_EDITS[q.id+':'+k]!==undefined ? VOICE_EDITS[q.id+':'+k] : (ap[k]!==undefined ? ap[k] : (ex[k] && ex[k].value) || '');
+    const rows = CALL_FIELDS.map(([k,label])=>{
+      const c = ex[k]; const low = c && typeof c.confidence==='number' && c.confidence < LOW_CONFIDENCE && ap[k]===undefined;
+      return `<label style="display:block; ${k==='notes'||k==='buyerAddress'?'grid-column:1/-1;':''}"><div class="dg-label" style="margin-bottom:3px;">${label}${low?' <span style="color:var(--warn-text);">⚠ not sure, please check</span>':''}</div>
+        <input class="select" data-voice-field="${id}:${k}" value="${esc(val(k))}" title="${esc(c&&c.snippet?'Heard: “'+c.snippet+'”':'')}" style="width:100%; box-sizing:border-box; ${low?'background:var(--warn-soft);':''}"></label>`;
+    }).join('');
+    const saved = last.appliedAt ? `<span class="pill pill-good" style="font-size:10.5px;">✓ Saved${last.appliedBy?' by '+esc(last.appliedBy):''}. These pre-fill the proforma when you convert this to an order.</span>` : `<span class="pill pill-warn" style="font-size:10.5px;">Not saved yet: please review</span>`;
+    return wrap(`<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">${saved}<span style="font-size:11.5px; color:var(--text-muted);">${last.durationSec||0}s call</span></div>
+      ${pending?'<div style="font-size:12.5px; color:var(--text-muted); margin-bottom:8px;">Reading the transcript…</div>':''}
+      ${last.extractionError?`<div style="font-size:12px; color:var(--warn-text); margin-bottom:8px;">${esc(last.extractionError)}</div>`:''}
+      ${ex.spokeWithBuyer===false?'<div style="font-size:12px; color:var(--warn-text); margin-bottom:8px;">The AI thinks the buyer did not really give any details. Read the transcript.</div>':''}
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px;">${rows}</div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-primary" data-voice-save="${id}">Save call notes</button></div>
+      <details style="margin-top:10px;"><summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-2);">Transcript</summary><pre style="white-space:pre-wrap; font-family:inherit; font-size:12.5px; background:var(--surface-2); border-radius:8px; padding:10px 12px; margin:8px 0 0;">${esc(last.transcript||'')}</pre></details>
+      ${at.length<CALL_MAX?`<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px; color:var(--text-muted);">Call again</summary><div style="margin-top:8px;">${startForm('Start call')}</div></details>`:''}`);
+  }
+  const msg = last.errorMessage || CALL_STATUS_TEXT[last.status] || 'The call did not complete.';
+  return wrap(`<div style="font-size:12.5px; color:var(--warn-text); margin-bottom:8px;">${esc(msg)} (${at.length} of ${CALL_MAX} attempts)</div>${at.length<CALL_MAX?startForm('Try again'):'<div style="font-size:12px; color:var(--text-muted);">No attempts left. Reach out another way.</div>'}`);
+}
+async function voiceStart(id){
+  const phoneEl = document.querySelector('[data-voice-phone="'+id+'"]'), consentEl = document.querySelector('[data-voice-consent="'+id+'"]');
+  VOICE_BUSY[id] = true; route();
+  try{
+    const res = await fetch('/api/inquiries/'+encodeURIComponent(id)+'/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:VOICE_EDITS[id+':phone']!==undefined?VOICE_EDITS[id+':phone']:(phoneEl?phoneEl.value:''), consent: VOICE_EDITS[id+':consent']===true || !!(consentEl&&consentEl.checked)})});
+    const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
+    delete VOICE_EDITS[id+':consent']; showToast('Calling now…');
+    VOICE_CALLS[id] = [j.attempt, ...(VOICE_CALLS[id]||[])];
+  }catch(e){ showToast(e.message||'Could not start the call.'); }
+  VOICE_BUSY[id] = false; route();
+}
+async function voiceSave(id){
+  const last = (VOICE_CALLS[id]||[])[0]; if(!last) return;
+  const details = {}; document.querySelectorAll('[data-voice-field^="'+id+':"]').forEach(el=>{ details[el.dataset.voiceField.split(':')[1]] = el.value; });
+  try{
+    const res = await fetch('/api/inquiries/'+encodeURIComponent(id)+'/call/notes',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({attemptId:last.id, details})});
+    const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
+    CALL_FIELDS.forEach(([k])=>delete VOICE_EDITS[id+':'+k]); showToast('Call notes saved.');
+  }catch(e){ showToast(e.message||'Could not save.'); }
+  await voiceLoad(id); route();
+}
+document.addEventListener('input', e=>{
+  const t = e.target; if(!t.dataset) return;
+  if(t.dataset.voicePhone) VOICE_EDITS[t.dataset.voicePhone+':phone'] = t.value;
+  if(t.dataset.voiceField){ const [i,k] = t.dataset.voiceField.split(':'); VOICE_EDITS[i+':'+k] = t.value; }
+});
+document.addEventListener('change', e=>{ const t=e.target; if(t.dataset && t.dataset.voiceConsent) VOICE_EDITS[t.dataset.voiceConsent+':consent'] = t.checked; });
 
 function viewInquiries(){
   const tabs = [
@@ -2265,6 +2362,10 @@ document.addEventListener('click', (e)=>{
 
   const convEl = e.target.closest('[data-convert-inquiry]');
   if(convEl){ e.stopPropagation(); const q = INQUIRIES.find(x=>x.id===convEl.dataset.convertInquiry); if(q) openNewOrderModal(prefillFromInquiry(q)); return; }
+  const vsEl = e.target.closest('[data-voice-start]');
+  if(vsEl){ e.stopPropagation(); voiceStart(vsEl.dataset.voiceStart); return; }
+  const vvEl = e.target.closest('[data-voice-save]');
+  if(vvEl){ e.stopPropagation(); voiceSave(vvEl.dataset.voiceSave); return; }
   const dgEl = e.target.closest('[data-draft-gen]');
   if(dgEl){ e.stopPropagation(); generateDraft(dgEl.dataset.draftGen); return; }
   const dsEl = e.target.closest('[data-draft-save]');
@@ -2310,6 +2411,7 @@ window.addEventListener('hashchange', route);
   try{ await loadState(); }catch(e){ failed = String(e && e.message || e); RAW_ORDERS.forEach(r=>{ ORDER_META[r.id] = ORDER_META[r.id] || {}; }); }
   await Promise.all([loadInquiries(), loadCustomers()]);
   route();
+  voiceInit();
   if(failed) showBackendError('('+failed+')');
 })();
 </script>

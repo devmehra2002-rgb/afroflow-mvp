@@ -1,7 +1,8 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import { devUserEmail } from "@/lib/devAuth";
 
-export default auth((req) => {
+const realProxy = auth((req) => {
   const isLoggedIn = !!req.auth;
   const isLoginPage = req.nextUrl.pathname === "/login";
 
@@ -14,6 +15,9 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/", req.nextUrl.origin));
   }
 });
+
+// On a developer's own computer only (lib/devAuth.ts) the sign-in gate is skipped.
+export default devUserEmail() ? () => NextResponse.next() : realProxy;
 
 export const config = {
   // /api/intake is exempt from the Google sign-in gate: n8n calls it with a

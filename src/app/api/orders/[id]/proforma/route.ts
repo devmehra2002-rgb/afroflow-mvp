@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { defaultProforma, proformaNumber, sanitizeProforma } from "@/lib/proforma/calc";
 import { loadCompany } from "@/lib/proforma/company";
 import { proformaView } from "@/lib/proforma/view";
+import { overlayCallDetails } from "@/lib/voice/service";
+import type { AppliedDetails } from "@/lib/voice/extract";
 
 // GET /api/orders/:id/proforma — the saved proforma, or a fresh first draft built
 // from the order (not saved until a person clicks Save).
@@ -15,10 +17,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (order.proforma) return NextResponse.json({ ...proformaView(order.proforma, true), orderValue: order.value });
   const today = new Date().toISOString().slice(0, 10);
-  return NextResponse.json({
-    saved: false, number: null, version: 1, status: "DRAFT", approvedBy: null, approvedAt: null, orderValue: order.value,
-    data: defaultProforma({ id: order.id, customerName: order.customerName, country: order.country, product: order.product, qty: order.qty, value: order.value, terms: order.terms }, today),
-  });
+  let data = defaultProforma({ id: order.id, customerName: order.customerName, country: order.country, product: order.product, qty: order.qty, value: order.value, terms: order.terms }, today);
+  // details a person confirmed on an AI call to this (new) customer pre-fill the buyer fields
+  if (order.sourceInquiryId) {
+    const call = await prisma.callAttempt.findFirst({ where: { inquiryId: order.sourceInquiryId, appliedAt: { not: null } }, orderBy: { appliedAt: "desc" } });
+    data = overlayCallDetails(data, call?.applied as AppliedDetails | null);
+  }
+  return NextResponse.json({ saved: false, number: null, version: 1, status: "DRAFT", approvedBy: null, approvedAt: null, orderValue: order.value, data });
 }
 
 // PUT /api/orders/:id/proforma — save the draft. An approved proforma is locked:

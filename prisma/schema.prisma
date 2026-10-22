@@ -182,6 +182,7 @@ model Inquiry {
   reminderSentAt    DateTime?
   createdAt         DateTime       @default(now())
   activity          OrderActivity[]
+  calls             CallAttempt[]
 
   @@index([status])
   @@index([customerId])
@@ -198,4 +199,28 @@ model OrderActivity {
   createdAt DateTime @default(now())
 
   @@index([orderId])
+}
+
+model CallAttempt {
+  id              String    @id @default(cuid())
+  inquiryId       String
+  inquiry         Inquiry   @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  provider        String    @default("bolna")
+  executionId     String?
+  toPhone         String
+  status          String    @default("CALLING") // CALLING | DONE | NO_ANSWER | BUSY | NO_CONVERSATION | FAILED
+  providerStatus  String?
+  transcript      String?
+  durationSec     Int?
+  extracted       Json?
+  extractionError String?
+  applied         Json?
+  appliedBy       String?
+  appliedAt       DateTime?
+  errorMessage    String?
+  requestedBy     String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now())
+
+  @@index([inquiryId])
 }

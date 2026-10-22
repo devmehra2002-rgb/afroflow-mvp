@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/intake/email": ["./prompts/**/*"],
     "/api/inquiries/[id]/draft": ["./prompts/**/*"],
+    "/api/inquiries/[id]/call": ["./prompts/**/*"],
   },
   async rewrites() {
     // Serve the existing static site unchanged at "/" — this app only adds
