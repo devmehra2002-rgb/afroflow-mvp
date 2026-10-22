@@ -1,10 +1,9 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 
-const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+import { isAllowed, parseAllowList } from "@/lib/allowlist";
+
+const allowedEmails = parseAllowList(process.env.ALLOWED_EMAILS, process.env.EXTRA_ALLOWED_EMAILS);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [Google],
@@ -14,10 +13,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/login",
   },
   callbacks: {
-    // The allowlist gate: only emails in ALLOWED_EMAILS may sign in.
+    // The allowlist gate: only emails in ALLOWED_EMAILS / EXTRA_ALLOWED_EMAILS may sign in.
     async signIn({ user }) {
-      if (!user.email) return false;
-      return allowedEmails.includes(user.email.toLowerCase());
+      return isAllowed(user.email, allowedEmails);
     },
   },
 });
