@@ -4,7 +4,7 @@ import type { CallAttempt, PrismaClient } from "@prisma/client";
 import { CALL_TIMEOUT_MINUTES, MAX_ATTEMPTS, canStartCall, isE164, normalizePhone, voiceCallsEnabled } from "../src/lib/voice/config";
 import { getBolnaExecution, mapExecution, startBolnaCall, type FetchLike } from "../src/lib/voice/bolna";
 import { CALL_FIELDS, cleanApplied, extractCallDetails, loadCallPrompt } from "../src/lib/voice/extract";
-import { attemptView, overlayCallDetails, refreshAttempt, startCall, type VoiceDeps } from "../src/lib/voice/service";
+import { attemptView, overlayCallDetails, refreshAttempt, rereadAttempt, startCall, type VoiceDeps } from "../src/lib/voice/service";
 import { defaultProforma } from "../src/lib/proforma/calc";
 
 let passed = 0, failed = 0;
@@ -19,8 +19,9 @@ function fakePrisma(inquiry: Record<string, unknown> | null) {
   const db = {
     inquiry: { findUnique: async () => (inquiry ? { ...inquiry, calls: [...calls] } : null) },
     callAttempt: {
-      create: async ({ data }: { data: Partial<CallAttempt> }) => { const r = { id: `c${calls.length + 1}`, status: "CALLING", providerStatus: null, transcript: null, durationSec: null, extracted: null, extractionError: null, applied: null, appliedBy: null, appliedAt: null, errorMessage: null, provider: "bolna", createdAt: NOW, updatedAt: NOW, ...data } as CallAttempt; calls.push(r); return r; },
+      create: async ({ data }: { data: Partial<CallAttempt> }) => { const r = { id: `c${calls.length + 1}`, inquiryId: "i1", status: "CALLING", providerStatus: null, transcript: null, durationSec: null, extracted: null, extractionError: null, applied: null, appliedBy: null, appliedAt: null, errorMessage: null, provider: "bolna", createdAt: NOW, updatedAt: NOW, ...data } as CallAttempt; calls.push(r); return r; },
       findUnique: async ({ where }: { where: { id: string } }) => calls.find((c) => c.id === where.id) ?? null,
+      findFirst: async ({ where }: { where: { id: string; inquiryId: string } }) => calls.find((c) => c.id === where.id && c.inquiryId === where.inquiryId) ?? null,
       update: async ({ where, data }: { where: { id: string }; data: Partial<CallAttempt> }) => { const r = calls.find((c) => c.id === where.id)!; Object.assign(r, data); return r; },
       updateMany: async ({ where, data }: { where: { id: string; status?: string }; data: Partial<CallAttempt> }) => {
         const r = calls.find((c) => c.id === where.id && (!where.status || c.status === where.status));
@@ -194,6 +195,18 @@ async function main() {
   check(race.calls[0].status === "DONE" && race.calls[0].extracted !== null, "two browser tabs polling at once still end up with one clean result");
 
   check(!("requestedBy" in attemptView(race.calls[0])), "the screen is not sent internal fields");
+
+  // ---- reading a finished call again once an AI key exists ----
+  const nkId = noKey.calls[0].id;
+  const noAi = await rereadAttempt(noKey.deps, nkId, "i1");
+  check(!noAi.ok && noAi.status === 503 && /ANTHROPIC_API_KEY/.test(noAi.error), "re-read without an AI key says what is missing");
+  const withAi: VoiceDeps = { ...noKey.deps, anthropic: ai([JSON.stringify(goodDetails)]).client };
+  const again = await rereadAttempt(withAi, nkId, "i1");
+  check(again.ok && (noKey.calls[0].extracted as { buyerCompany?: { value: string } } | null)?.buyerCompany?.value === "Chip Monk Snacks" && noKey.calls[0].extractionError === null, "re-read fills the details and clears the old message");
+  check(!(await rereadAttempt(withAi, nkId, "another-inquiry")).ok && !(await rereadAttempt(withAi, "nope", "i1")).ok, "re-read only works for this inquiry's own call");
+  const badAi: VoiceDeps = { ...noKey.deps, anthropic: ai(["not json"]).client };
+  const bad = await rereadAttempt(badAi, nope.calls[0].id, "i1");
+  check(!bad.ok, "re-read of a call with no transcript is refused");
 
   // ---- pre-fill the proforma from confirmed details ----
   const base = defaultProforma({ id: "AA-1", customerName: "Chip Monk Snacks", country: "UAE", product: "Peanuts", qty: "1", value: 100, terms: "TT" }, "2026-10-22");

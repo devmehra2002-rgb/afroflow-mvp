@@ -70,6 +70,17 @@ export async function refreshAttempt(deps: VoiceDeps, a: CallAttempt): Promise<C
   return (await deps.prisma.callAttempt.findUnique({ where: { id: a.id } })) ?? a;
 }
 
+// Reads the saved transcript of a finished call again (for example after an AI key was added).
+export async function rereadAttempt(deps: VoiceDeps, attemptId: string, inquiryId: string): Promise<Result<CallAttempt>> {
+  const a = await deps.prisma.callAttempt.findFirst({ where: { id: attemptId, inquiryId } });
+  if (!a) return { ok: false, status: 404, error: "Call not found." };
+  if (a.status !== "DONE" || !a.transcript) return { ok: false, status: 400, error: "Only a finished call with a transcript can be read." };
+  if (!deps.anthropic) return { ok: false, status: 503, error: "There is no AI key on this computer yet (ANTHROPIC_API_KEY), so the transcript cannot be read." };
+  const r = await extractCallDetails({ client: deps.anthropic, model: deps.model, prompt: loadCallPrompt().text, transcript: a.transcript });
+  const u = await deps.prisma.callAttempt.update({ where: { id: a.id }, data: r.data ? { extracted: r.data as object, extractionError: null } : { extractionError: r.error } });
+  return r.data ? { ok: true, value: u } : { ok: false, status: 502, error: `The AI could not read it: ${r.error}` };
+}
+
 // What the screen needs for one attempt.
 export function attemptView(a: CallAttempt) {
   return {

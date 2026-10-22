@@ -2021,7 +2021,7 @@ function voiceSection(q){
       ${last.extractionError?`<div style="font-size:12px; color:var(--warn-text); margin-bottom:8px;">${esc(last.extractionError)}</div>`:''}
       ${ex.spokeWithBuyer===false?'<div style="font-size:12px; color:var(--warn-text); margin-bottom:8px;">The AI thinks the buyer did not really give any details. Read the transcript.</div>':''}
       <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px;">${rows}</div>
-      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-primary" data-voice-save="${id}">Save call notes</button></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-primary" data-voice-save="${id}">Save call notes</button>${last.appliedAt?'':`<button class="btn" data-voice-reread="${id}" ${VOICE_BUSY[q.id+':reread']?'disabled':''}>${VOICE_BUSY[q.id+':reread']?'Reading…':'Read transcript with AI'}</button>`}</div>
       <details style="margin-top:10px;"><summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-2);">Transcript</summary><pre style="white-space:pre-wrap; font-family:inherit; font-size:12.5px; background:var(--surface-2); border-radius:8px; padding:10px 12px; margin:8px 0 0;">${esc(last.transcript||'')}</pre></details>
       ${at.length<CALL_MAX?`<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px; color:var(--text-muted);">Call again</summary><div style="margin-top:8px;">${startForm('Start call')}</div></details>`:''}`);
   }
@@ -2038,6 +2038,16 @@ async function voiceStart(id){
     VOICE_CALLS[id] = [j.attempt, ...(VOICE_CALLS[id]||[])];
   }catch(e){ showToast(e.message||'Could not start the call.'); }
   VOICE_BUSY[id] = false; route();
+}
+async function voiceReread(id){
+  const last = (VOICE_CALLS[id]||[])[0]; if(!last) return;
+  VOICE_BUSY[id+':reread'] = true; route();
+  try{
+    const res = await fetch('/api/inquiries/'+encodeURIComponent(id)+'/call/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attemptId:last.id})});
+    const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
+    CALL_FIELDS.forEach(([k])=>delete VOICE_EDITS[id+':'+k]); showToast('The AI has read the transcript. Please check every field.');
+  }catch(e){ showToast(e.message||'Could not read the transcript.'); }
+  VOICE_BUSY[id+':reread'] = false; await voiceLoad(id); route();
 }
 async function voiceSave(id){
   const last = (VOICE_CALLS[id]||[])[0]; if(!last) return;
@@ -2364,6 +2374,8 @@ document.addEventListener('click', (e)=>{
   if(convEl){ e.stopPropagation(); const q = INQUIRIES.find(x=>x.id===convEl.dataset.convertInquiry); if(q) openNewOrderModal(prefillFromInquiry(q)); return; }
   const vsEl = e.target.closest('[data-voice-start]');
   if(vsEl){ e.stopPropagation(); voiceStart(vsEl.dataset.voiceStart); return; }
+  const vrEl = e.target.closest('[data-voice-reread]');
+  if(vrEl){ e.stopPropagation(); voiceReread(vrEl.dataset.voiceReread); return; }
   const vvEl = e.target.closest('[data-voice-save]');
   if(vvEl){ e.stopPropagation(); voiceSave(vvEl.dataset.voiceSave); return; }
   const dgEl = e.target.closest('[data-draft-gen]');
