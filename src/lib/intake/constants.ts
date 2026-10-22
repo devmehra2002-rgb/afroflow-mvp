@@ -17,3 +17,6 @@ export const TOTAL_STEPS = 15;
 
 // Order ids look like AA-2026-023.
 export const ORDER_ID_PATTERN = /\bAA-\d{4}-\d{3}\b/gi;
+
+// n8n nudges when this many hours (or fewer) are left on the 24h reply timer
+export const REMINDER_LEAD_HOURS = 4;

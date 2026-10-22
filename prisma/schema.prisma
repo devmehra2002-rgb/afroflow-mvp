@@ -159,6 +159,13 @@ model Inquiry {
   extracted         Json?
   promptVersion     String?
   model             String?
+  draftBody         String?
+  draftSubject      String?
+  draftStatus       String         @default("NONE") // NONE | DRAFTED | QUEUED | IN_GMAIL
+  draftModel        String?
+  gmailDraftId      String?
+  repliedAt         DateTime?
+  reminderSentAt    DateTime?
   createdAt         DateTime       @default(now())
   activity          OrderActivity[]
 

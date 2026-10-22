@@ -1,0 +1,299 @@
+{
+  "name": "AfroFlow step 3 - draft replies and reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AfroFlow step 3 \u2014 replies and reminders\n**Row 1:** every minute, fetch replies a person approved in AfroFlow and save each as a **Gmail draft** (never sent).\n**Row 2:** every 10 minutes, email YOU a nudge when an enquiry's 24h reply timer has under 4 hours left.\nSetup: paste the intake secret into the 4 HTTP nodes, attach your Gmail credential to the 2 Gmail nodes, then Publish.",
+        "height": 200,
+        "width": 620
+      },
+      "name": "Note -300",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://afrofloow.vercel.app/api/intake/drafts",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Intake-Secret",
+              "value": "PASTE_INTAKE_SECRET_HERE"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "retry": {
+              "maxTries": 3
+            }
+          }
+        }
+      },
+      "name": "Get approved drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.body }}",
+        "options": {
+          "sendTo": "={{ $json.to }}"
+        }
+      },
+      "name": "Create Gmail draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://afrofloow.vercel.app/api/intake/drafts/' + $('Get approved drafts').item.json.id }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Intake-Secret",
+              "value": "PASTE_INTAKE_SECRET_HERE"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "retry": {
+              "maxTries": 3
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ gmailDraftId: $json.id }) }}"
+      },
+      "name": "Tell AfroFlow it is in Gmail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "name": "Every 10 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://afrofloow.vercel.app/api/intake/reminders",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Intake-Secret",
+              "value": "PASTE_INTAKE_SECRET_HERE"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "retry": {
+              "maxTries": 3
+            }
+          }
+        }
+      },
+      "name": "Get due reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        360
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "sendTo": "devmehra2002@gmail.com",
+        "subject": "=AfroFlow reminder: {{ $json.subject }}",
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "name": "Email me a nudge",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        480,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://afrofloow.vercel.app/api/intake/reminders/' + $('Get due reminders').item.json.id }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Intake-Secret",
+              "value": "PASTE_INTAKE_SECRET_HERE"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "retry": {
+              "maxTries": 3
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}"
+      },
+      "name": "Mark nudge sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        360
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    }
+  ],
+  "connections": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Get approved drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get approved drafts": {
+      "main": [
+        [
+          {
+            "node": "Create Gmail draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Gmail draft": {
+      "main": [
+        [
+          {
+            "node": "Tell AfroFlow it is in Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 10 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get due reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get due reminders": {
+      "main": [
+        [
+          {
+            "node": "Email me a nudge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email me a nudge": {
+      "main": [
+        [
+          {
+            "node": "Mark nudge sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

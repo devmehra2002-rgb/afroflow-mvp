@@ -20,6 +20,7 @@ export async function GET() {
       customerId: r.customerId, customerName: r.customer?.name ?? null, customerCountry: r.customer?.country ?? null,
       orderId: r.orderId, isBuyerEnquiry: r.isBuyerEnquiry, overallConfidence: r.overallConfidence,
       extracted: r.extracted,
+      draftBody: r.draftBody, draftSubject: r.draftSubject, draftStatus: r.draftStatus, repliedAt: r.repliedAt,
     }))
   );
 }

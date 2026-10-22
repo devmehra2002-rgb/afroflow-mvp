@@ -1715,11 +1715,71 @@ function inquiryCard(q, opts){
     ${q.routeReason ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:10px;">Why it's here: ${esc(q.routeReason)}</div>` : ''}
     <details style="margin-top:10px;"><summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-2);">Original email</summary>
       <pre style="white-space:pre-wrap; font-family:inherit; font-size:12.5px; background:var(--surface-2); border-radius:8px; padding:10px 12px; margin:8px 0 0;">${esc(q.bodyText||'')}</pre></details>
+    ${open ? draftSection(q) : ''}
     ${open ? `<div style="display:flex; gap:8px; margin-top:12px;">
       <button class="btn btn-primary" data-convert-inquiry="${esc(q.id)}">Convert to order</button>
       <button class="btn" data-dismiss-inquiry="${esc(q.id)}">Dismiss</button>
     </div>` : ''}
   </div>`;
+}
+
+// ---- Step 3: draft reply (AI writes, a human edits, n8n files it in Gmail Drafts; nothing is ever sent) ----
+const DRAFT_EDITS = {};      // unsaved text per inquiry, so a background refresh never wipes what you are typing
+const DRAFT_BUSY = {};
+function draftSection(q){
+  const isBuyer = q.status==='NEW_CUSTOMER' || q.status==='EXISTING_CUSTOMER';
+  if(!isBuyer) return '';
+  const id = esc(q.id);
+  const replied = q.repliedAt ? `<span class="pill pill-good" style="font-size:10.5px;">✓ marked as replied</span>` : '';
+  if(!q.draftBody){
+    return `<div style="margin-top:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <button class="btn" data-draft-gen="${id}" ${DRAFT_BUSY[q.id]?'disabled':''}>${DRAFT_BUSY[q.id]?'Writing draft…':'✉ Draft reply with AI'}</button>
+      ${q.repliedAt?replied:`<button class="btn" data-mark-replied="${id}">I've replied</button>`}
+    </div>`;
+  }
+  const st = {DRAFTED:['Draft · not in Gmail yet','pill-neutral'], QUEUED:['Sending to Gmail Drafts… (within a minute)','pill-warn'], IN_GMAIL:['✓ In your Gmail Drafts — review and send it from Gmail','pill-good']}[q.draftStatus] || ['Draft','pill-neutral'];
+  const txt = DRAFT_EDITS[q.id]!==undefined ? DRAFT_EDITS[q.id] : q.draftBody;
+  const locked = q.draftStatus==='QUEUED' || DRAFT_BUSY[q.id];
+  return `<div style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text-2);">Draft reply · <span style="font-weight:500; color:var(--text-muted);">${esc(q.draftSubject||'')}</span></div>
+      <span class="pill ${st[1]}" style="font-size:10.5px;">${st[0]}</span>
+    </div>
+    <textarea data-draft-text="${id}" rows="9" ${locked?'disabled':''} style="width:100%; box-sizing:border-box; font-family:inherit; font-size:12.8px; line-height:1.5; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:10px 12px; resize:vertical;">${esc(txt)}</textarea>
+    <div style="font-size:11.5px; color:var(--text-muted); margin:6px 0 8px;">AI wrote this from the email and the customer's past orders. It never states prices or promises. Nothing is sent from here: it goes to Gmail Drafts and you press Send yourself.</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-primary" data-draft-save="${id}" data-queue="1" ${locked?'disabled':''}>Save to Gmail drafts</button>
+      <button class="btn" data-draft-save="${id}" ${locked?'disabled':''}>Save edits</button>
+      <button class="btn" data-draft-gen="${id}" ${locked?'disabled':''}>Regenerate</button>
+      ${q.repliedAt?replied:`<button class="btn" data-mark-replied="${id}">I've replied</button>`}
+    </div>
+  </div>`;
+}
+async function draftApi(id, method, body, path){
+  const res = await fetch('/api/inquiries/'+encodeURIComponent(id)+(path||'/draft'), {method, headers:{'Content-Type':'application/json'}, body: body?JSON.stringify(body):undefined});
+  if(!res.ok){ let m=''; try{ m=(await res.json()).error; }catch(e){} throw new Error(m||('HTTP '+res.status)); }
+  return res.json();
+}
+async function generateDraft(id){
+  DRAFT_BUSY[id]=true; delete DRAFT_EDITS[id]; route();
+  try{ await draftApi(id,'POST'); }
+  catch(e){ showToast(e.message||'Could not write a draft.'); }
+  DRAFT_BUSY[id]=false; await loadInquiries(); route();
+}
+async function saveDraft(id, queue){
+  const ta = document.querySelector('[data-draft-text="'+id+'"]');
+  const text = ta ? ta.value : DRAFT_EDITS[id];
+  if(!text || !text.trim()){ showToast('The reply is empty.'); return; }
+  try{
+    await draftApi(id,'PUT',{draftBody:text, queue:!!queue});
+    delete DRAFT_EDITS[id];
+    showToast(queue?'Queued — it will appear in your Gmail Drafts within a minute.':'Edits saved.');
+  }catch(e){ showToast(e.message||'Could not save the draft.'); }
+  await loadInquiries(); route();
+}
+async function markReplied(id){
+  try{ await draftApi(id,'POST',null,'/replied'); }catch(e){ showToast('Could not update — check your connection.'); }
+  await loadInquiries(); route();
 }
 
 function viewInquiries(){
@@ -1765,6 +1825,7 @@ async function dismissInquiry(id){
 }
 
 // refresh shared data in the background so new emails appear without a reload
+document.addEventListener('input', e=>{ const t=e.target.closest && e.target.closest('[data-draft-text]'); if(t) DRAFT_EDITS[t.dataset.draftText]=t.value; });
 async function pollInquiries(){
   if(document.hidden) return;
   const changed = await loadInquiries();
@@ -2023,6 +2084,12 @@ document.addEventListener('click', (e)=>{
 
   const convEl = e.target.closest('[data-convert-inquiry]');
   if(convEl){ e.stopPropagation(); const q = INQUIRIES.find(x=>x.id===convEl.dataset.convertInquiry); if(q) openNewOrderModal(prefillFromInquiry(q)); return; }
+  const dgEl = e.target.closest('[data-draft-gen]');
+  if(dgEl){ e.stopPropagation(); generateDraft(dgEl.dataset.draftGen); return; }
+  const dsEl = e.target.closest('[data-draft-save]');
+  if(dsEl){ e.stopPropagation(); saveDraft(dsEl.dataset.draftSave, dsEl.dataset.queue==='1'); return; }
+  const mrEl = e.target.closest('[data-mark-replied]');
+  if(mrEl){ e.stopPropagation(); markReplied(mrEl.dataset.markReplied); return; }
   const dismEl = e.target.closest('[data-dismiss-inquiry]');
   if(dismEl){ e.stopPropagation(); dismissInquiry(dismEl.dataset.dismissInquiry); return; }
   const inqTabEl = e.target.closest('[data-inq-tab]');
