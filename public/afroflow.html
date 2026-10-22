@@ -2011,8 +2011,9 @@ function voiceSection(q){
     const pending = !last.extracted && !last.extractionError;
     const val = k => VOICE_EDITS[q.id+':'+k]!==undefined ? VOICE_EDITS[q.id+':'+k] : (ap[k]!==undefined ? ap[k] : (ex[k] && ex[k].value) || '');
     const rows = CALL_FIELDS.map(([k,label])=>{
-      const c = ex[k]; const low = c && typeof c.confidence==='number' && c.confidence < LOW_CONFIDENCE && ap[k]===undefined;
-      return `<label style="display:block; ${k==='notes'||k==='buyerAddress'?'grid-column:1/-1;':''}"><div class="dg-label" style="margin-bottom:3px;">${label}${low?' <span style="color:var(--warn-text);">⚠ not sure, please check</span>':''}</div>
+      const c = ex[k]; const always = (k==='buyerEmail'||k==='buyerPhone') && !!(c && c.value); // spoken emails and numbers are always double-checked, whatever the AI's score
+      const low = c && ap[k]===undefined && (always || (typeof c.confidence==='number' && c.confidence < LOW_CONFIDENCE));
+      return `<label style="display:block; ${k==='notes'||k==='buyerAddress'?'grid-column:1/-1;':''}"><div class="dg-label" style="margin-bottom:3px;">${label}${low?` <span style="color:var(--warn-text);">${always?'⚠ heard over the phone, always check':'⚠ not sure, please check'}</span>`:''}</div>
         <input class="select" data-voice-field="${id}:${k}" value="${esc(val(k))}" title="${esc(c&&c.snippet?'Heard: “'+c.snippet+'”':'')}" style="width:100%; box-sizing:border-box; ${low?'background:var(--warn-soft);':''}"></label>`;
     }).join('');
     const saved = last.appliedAt ? `<span class="pill pill-good" style="font-size:10.5px;">✓ Saved${last.appliedBy?' by '+esc(last.appliedBy):''}. These pre-fill the proforma when you convert this to an order.</span>` : `<span class="pill pill-warn" style="font-size:10.5px;">Not saved yet: please review</span>`;
