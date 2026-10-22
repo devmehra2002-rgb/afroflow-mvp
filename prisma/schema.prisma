@@ -135,8 +135,22 @@ model OpsOrder {
   sourceInquiryId String?
   activity        OrderActivity[]
   inquiries       Inquiry[]
+  proforma        OrderProforma?
 
   @@index([customerId])
+}
+
+model OrderProforma {
+  orderId    String    @id
+  order      OpsOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  number     String
+  version    Int       @default(1)
+  status     String    @default("DRAFT") // DRAFT | APPROVED
+  data       Json      @default("{}")
+  approvedBy String?
+  approvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now())
 }
 
 model Inquiry {

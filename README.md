@@ -74,6 +74,7 @@ npx tsx test/intake.test.ts     # 45 checks: routing rules, sender parsing, Gmai
 npx tsx test/scanner.test.ts    # document scanner comparison logic
 npx tsx test/extract.test.ts
 npx tsx test/draft.test.ts      # step 3: reply drafter (12 checks)
+npx tsx test/proforma.test.ts   # step 4: proforma maths, validation, PDF (41 checks)
 node test-logic.mjs             # order features
 ```
 
@@ -104,3 +105,9 @@ Result on the live site: all 5 sample emails routed correctly (existing customer
 ## Step 3: draft reply and reply reminder
 
 On every open buyer enquiry, **Draft reply with AI** asks Claude for a short first reply (it sees the email and that customer's past orders, and is told never to state prices or promise anything). You edit it, then **Save to Gmail drafts**. A second n8n workflow (`n8n/afroflow-draft-and-reminders.json`) creates the Gmail draft. **Nothing is ever sent automatically**: you press Send in Gmail. The same workflow emails you a nudge when an enquiry has under 4 hours left on its 24h reply timer; **I've replied** stops the nudges.
+
+## Step 4: proforma invoice
+
+Each order has a **Proforma** tab, pre-filled from the order. A person enters the agreed unit price (AI never sets a price), plain code adds up the totals, and **Download PDF** produces a real PDF, watermarked DRAFT until approved. **Approve** locks the invoice, logs it as the order's Proforma Invoice document (which ticks off the *Issue Proforma Invoice* task) and writes to the order's activity log. A locked invoice can be reopened as a numbered revision (PI-2026-021-R1). Nothing is sent to the buyer automatically.
+
+Company details on the PDF come from environment variables, never from the code: `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_EMAIL`, `COMPANY_IEC`, `COMPANY_GSTIN`, `COMPANY_BANK` (use `\n` for line breaks). Anything unset is left off the invoice.
