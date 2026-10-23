@@ -138,3 +138,31 @@ export function parseGmailMessage(m: GmailMessage): { messageId: string | null; 
     date: Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : h("date") ? new Date(h("date")).toISOString() : null,
   };
 }
+
+// n8n's Gmail trigger can hand over an email in several shapes: a raw Gmail API
+// message (has "payload"), a parsed email (from is an object, text/html fields), or the
+// simplified one (capitalised From/Subject). This turns any of them into plain fields.
+export function coerceIncoming(raw: Record<string, unknown> | null): { messageId: string | null; from: string; subject: string; body: string; date: string | null } {
+  if (!raw || typeof raw !== "object") return { messageId: null, from: "", subject: "", body: "", date: null };
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const addr = (v: unknown): string => {
+    if (typeof v === "string") return v;
+    const o = v as { text?: unknown; value?: { name?: string; address?: string }[] } | null;
+    if (o && typeof o.text === "string" && o.text) return o.text;
+    const first = o?.value?.[0];
+    return first?.address ? (first.name ? `${first.name} <${first.address}>` : first.address) : "";
+  };
+  const hasPayload = !!(raw as { payload?: unknown }).payload;
+  const gm = hasPayload ? parseGmailMessage(raw as unknown as GmailMessage) : null;
+  const html = str(raw.html) || str(raw.textHtml) || str(raw.textAsHtml);
+  const dateRaw = raw.date ?? raw.Date;
+  const dateStr = typeof dateRaw === "string" || typeof dateRaw === "number" ? new Date(dateRaw) : null;
+  const ms = Number(raw.internalDate);
+  return {
+    messageId: str(raw.messageId) || str(raw.id) || gm?.messageId || null,
+    from: addr(raw.from) || addr(raw.From) || gm?.from || "",
+    subject: str(raw.subject) || str(raw.Subject) || gm?.subject || "",
+    body: (str(raw.body) || str(raw.text) || (html ? stripHtml(html) : "") || gm?.body || str(raw.snippet)).trim(),
+    date: dateStr && !Number.isNaN(dateStr.getTime()) ? dateStr.toISOString() : Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : gm?.date ?? null,
+  };
+}

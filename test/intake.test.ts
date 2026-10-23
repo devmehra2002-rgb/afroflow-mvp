@@ -1,7 +1,7 @@
 // Tests for the email-intake logic. The AI is MOCKED: no network, no API key.
 import { extractEnquiry, loadPrompt, enquirySchema, type AnthropicLike, type Enquiry } from "../src/lib/intake/extract";
 import { clipText } from "../src/lib/intake/clip";
-import { parseSender, secretsMatch, routeInquiry, applyPreviousOrderRule, findOrderReference, parseGmailMessage } from "../src/lib/intake/rules";
+import { coerceIncoming, parseSender, secretsMatch, routeInquiry, applyPreviousOrderRule, findOrderReference, parseGmailMessage } from "../src/lib/intake/rules";
 
 let passed = 0, failed = 0;
 const ok = (c: boolean, label: string) => { if (c) passed++; else { failed++; console.error("FAIL:", label); } };
@@ -134,6 +134,24 @@ const args = { prompt: "p", from: "a@b.com", subject: "s", body: "b", today: "20
   ok(/middle of this long email was left out/.test(c), "the AI is told something was left out");
   ok(clipText("x".repeat(500), 500).length === 500 && clipText("x".repeat(501), 500).length <= 500, "exact limit boundary");
   ok(clipText("abc", 0).length >= 0, "tiny limit does not crash");
+}
+
+// ---- n8n Gmail trigger shapes: every one must come out as plain from/subject/body ----
+{
+  const plain = coerceIncoming({ messageId: "m1", from: "A <a@x.com>", subject: "S", body: "B", date: "2026-10-23T05:00:00Z" });
+  eq([plain.from, plain.subject, plain.body, plain.messageId], ["A <a@x.com>", "S", "B", "m1"], "plain fields pass straight through");
+  const parsed = coerceIncoming({ id: "g1", from: { text: "Dev Mehra <dev@x.com>", value: [{ name: "Dev Mehra", address: "dev@x.com" }] }, subject: "Brake shoes", text: "Need 2 x 40ft", date: "2026-10-23T05:00:00.000Z" });
+  eq([parsed.from, parsed.subject, parsed.body, parsed.messageId], ["Dev Mehra <dev@x.com>", "Brake shoes", "Need 2 x 40ft", "g1"], "parsed email: from is an object, body is text");
+  const noText = coerceIncoming({ id: "g2", from: { value: [{ address: "only@x.com" }] }, subject: "S" , html: "<p>Hello <b>there</b></p>" });
+  eq([noText.from, noText.body], ["only@x.com", "Hello there"], "address-only sender, html-only body");
+  const simple = coerceIncoming({ id: "g3", From: "B <b@x.com>", Subject: "Quote", snippet: "need 1 x 20ft sesame", internalDate: "1761200000000" });
+  eq([simple.from, simple.subject, simple.body], ["B <b@x.com>", "Quote", "need 1 x 20ft sesame"], "simplified shape (capital From/Subject, snippet)");
+  ok(typeof simple.date === "string" && simple.date.startsWith("2025-"), "simplified shape: internalDate becomes the date");
+  const rawGmail = coerceIncoming({ id: "g4", snippet: "hi", payload: { headers: [{ name: "From", value: "C <c@x.com>" }, { name: "Subject", value: "Raw" }], mimeType: "text/plain", body: { data: "SGVsbG8gdGhlcmU" } } });
+  eq([rawGmail.from, rawGmail.subject, rawGmail.body], ["C <c@x.com>", "Raw", "Hello there"], "raw Gmail API message (payload and base64)");
+  eq(coerceIncoming(null).from, "", "null input gives empty fields, not a crash");
+  eq(coerceIncoming({ from: 42, subject: ["x"], body: {} } as never).from, "", "wrong types are ignored safely");
+  eq(coerceIncoming({ id: "g5", from: "z@x.com", text: " spaced \n" }).body, "spaced", "body is trimmed");
 }
 
   const p = loadPrompt();
