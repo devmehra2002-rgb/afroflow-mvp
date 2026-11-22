@@ -10,8 +10,18 @@ export async function GET(req: NextRequest) {
   const u = new URL(req.url);
   const state = u.searchParams.get("state");
   const code = u.searchParams.get("code");
-  if (!code || !state || state !== req.cookies.get("gmail_oauth_state")?.value) {
-    return NextResponse.json({ error: "Connection was cancelled or the link expired. Open /api/gmail/connect again." }, { status: 400 });
+  const googleError = u.searchParams.get("error");
+  if (googleError) {
+    const hint = googleError === "access_denied"
+      ? "Google refused or you cancelled. If you did not cancel, add this Gmail address under Google Auth Platform → Audience → Test users."
+      : "Google reported an error.";
+    return NextResponse.json({ error: `${hint} (Google said: ${googleError})` }, { status: 400 });
+  }
+  if (!code || !state) {
+    return NextResponse.json({ error: "No approval came back from Google. Start again from /api/gmail/connect (do not reload this page)." }, { status: 400 });
+  }
+  if (state !== req.cookies.get("gmail_oauth_state")?.value) {
+    return NextResponse.json({ error: "The security cookie was missing or expired (it lasts 10 minutes and needs the same browser). Start again from /api/gmail/connect." }, { status: 400 });
   }
   const tok = await exchangeCode(code);
   if (!tok.refresh_token) return NextResponse.json({ error: "Google did not return a long-lived sign-in. Remove AfroFlow at myaccount.google.com/permissions and connect again." }, { status: 400 });
