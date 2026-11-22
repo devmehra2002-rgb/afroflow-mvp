@@ -199,3 +199,17 @@ model OrderActivity {
 
   @@index([orderId])
 }
+
+// The owner's Gmail mailbox, connected once through Google sign-in. The refresh token is
+// stored encrypted (AES-256-GCM, key in GMAIL_TOKEN_KEY). Replaces the n8n connection.
+model GmailConnection {
+  id              String    @id @default("owner")
+  email           String
+  refreshTokenEnc String
+  historyId       String?
+  watchExpiresAt  DateTime?
+  lastSyncAt      DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+}

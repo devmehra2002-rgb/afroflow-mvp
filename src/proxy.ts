@@ -16,7 +16,7 @@ export default auth((req) => {
 });
 
 export const config = {
-  // /api/intake is exempt from the Google sign-in gate: n8n calls it with a
-  // shared-secret header instead (checked inside the route).
+  // /api/intake is exempt from the Google sign-in gate: the Gmail sync timer calls it with a
+  // shared-secret header (or the Gmail push token) instead, checked inside each route.
   matcher: ["/((?!api/auth|api/intake|_next/static|_next/image|favicon.ico).*)"],
 };
