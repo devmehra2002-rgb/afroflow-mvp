@@ -34,16 +34,22 @@ export async function runSync(): Promise<SyncResult> {
   return res;
 }
 
+// Not a buyer's email: not in the inbox, our own sent mail, drafts, spam, trash, the reminder we send
+// ourselves, or Gmail's Social / Promotions / Forums tabs (LinkedIn, newsletters). Primary and Updates are kept.
+export function shouldSkip(labels: string[], sender: string | undefined, ownEmail: string, subject: string): boolean {
+  if (!labels.includes("INBOX")) return true;
+  if (labels.some((l) => ["SENT", "DRAFT", "SPAM", "TRASH", "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_FORUMS"].includes(l))) return true;
+  if (sender && sender === ownEmail.toLowerCase()) return true;
+  return /^AfroFlow reminder:/i.test(subject);
+}
+
 async function ingestById(id: string, ownEmail: string, res: SyncResult) {
   const { status, data } = await gmail<Msg>(`/messages/${id}?format=full`);
   if (status === 404) { res.skipped++; return; }
   const labels = data.labelIds ?? [];
   const m = parseGmailMessage(data);
   const sender = parseSender(m.from).email?.toLowerCase();
-  // Not mail from outside: our own sent mail, drafts, the reminder we send to ourselves, spam.
-  if (!labels.includes("INBOX") || labels.some((l) => ["SENT", "DRAFT", "SPAM", "TRASH"].includes(l)) || sender === ownEmail.toLowerCase() || /^AfroFlow reminder:/i.test(m.subject)) {
-    res.skipped++; return;
-  }
+  if (shouldSkip(labels, sender, ownEmail, m.subject)) { res.skipped++; return; }
   const r = await ingestEmail(m);
   if (r.duplicate) res.duplicates++; else res.ingested++;
 }
