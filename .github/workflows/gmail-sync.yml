@@ -1,0 +1,29 @@
+name: Gmail sync
+
+# Wakes AfroFlow every ~5 minutes: pulls new mail, saves approved replies as Gmail drafts,
+# sends due reminders. GitHub may run it a few minutes late. If a run fails, GitHub emails the repo owner.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: gmail-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call AfroFlow sync
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          INTAKE_SECRET: ${{ secrets.INTAKE_SECRET }}
+        run: |
+          set -euo pipefail
+          [ -n "$SYNC_URL" ] && [ -n "$INTAKE_SECRET" ] || { echo "Missing SYNC_URL / INTAKE_SECRET secrets"; exit 1; }
+          code=$(curl -sS --max-time 90 -o out.json -w "%{http_code}" -H "x-intake-secret: $INTAKE_SECRET" "$SYNC_URL")
+          echo "HTTP $code"; cat out.json; echo
+          [ "$code" = "200" ] || exit 1
+          if grep -q '"error"' out.json; then echo "Sync reported an error"; exit 1; fi
