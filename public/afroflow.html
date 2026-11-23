@@ -1882,7 +1882,7 @@ function inquiryCard(q, opts){
   return `<div class="card" style="padding:16px 18px;">
     <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start;">
       <div style="min-width:0;">
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">${inquiryStatusPill(q)}${q.customerId && q.customerName ? `<a href="#/customers/${esc(q.customerId)}" style="font-size:12.5px; font-weight:600; color:var(--accent);">${esc(q.customerName)}</a>`:''}${conf}</div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">${inquiryStatusPill(q)}${q.customerId && q.customerName ? `<a href="#/customers/${esc(q.customerId)}" style="font-size:12.5px; font-weight:600; color:var(--accent);">${esc(q.customerName)}</a>`:''}${q.status==='NEW_CUSTOMER' ? leadPill(q) : conf}</div>
         <div style="font-size:14px; font-weight:600; margin-top:6px;">${esc(q.subject||'(no subject)')}</div>
         <div style="font-size:12px; color:var(--text-muted);">${esc(q.fromName?q.fromName+' · ':'')}${esc(q.fromEmail)} · received ${new Date(q.receivedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
       </div>
@@ -1901,8 +1901,8 @@ function inquiryCard(q, opts){
   </div>`;
 }
 
-// ---- Lead quality check: AI gathers findings with links, plain rules decide the score. A person decides what to do. ----
-const LEAD_BUSY = {};
+// ---- Lead quality: checked automatically for every new customer. AI gathers findings with links, plain rules decide the score.
+// Nobody can re-run it or change the result from here: it is whatever the evidence and the rules say. ----
 const LEAD_TIERS = {
   STRONG:['Strong','pill-good','Proceed as normal.'],
   REASONABLE:['Reasonable','pill-good','Proceed, and confirm the details in your reply.'],
@@ -1911,19 +1911,18 @@ const LEAD_TIERS = {
   STOP_AND_CHECK:['Stop and check','pill-crit','Possible sanctions match: do not engage until a person has checked.']
 };
 const safeUrl = (u)=> /^https?:\/\//i.test(u||'') ? u : '';
+// the badge at the top of the card (new customers only)
+function leadPill(q){
+  if(q.status!=='NEW_CUSTOMER') return '';
+  const lc = q.leadCheck;
+  if(!lc) return `<span class="pill pill-neutral" title="The buyer is being looked up automatically. This takes a few minutes.">🔎 Checking buyer…</span>`;
+  const t = LEAD_TIERS[lc.tier] || [lc.tier,'pill-neutral',''];
+  return `<span class="pill ${t[1]}" title="Lead quality: ${esc(t[2])}">Lead: ${esc(t[0])} · ${lc.score}/100</span>`;
+}
+// the reasoning, under the card
 function leadSection(q){
-  const isBuyer = q.status==='NEW_CUSTOMER' || q.status==='EXISTING_CUSTOMER';
-  if(!isBuyer || q.status==='CONVERTED' || q.status==='DISMISSED') return '';
-  const id = esc(q.id), lc = q.leadCheck;
-  const busy = LEAD_BUSY[q.id];
-  if(!lc){
-    return `<div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <button class="btn" data-lead-run="${id}" ${busy?'disabled':''}>${busy?'Researching… (up to a minute)':'🔎 Check this buyer'}</button>
-      <span style="font-size:11.5px; color:var(--text-muted);">Looks the company up on the web and gives a lead-quality score. It never blocks the enquiry.</span>
-    </div>`;
-  }
-  const eff = lc.overrideTier || lc.tier, t = LEAD_TIERS[eff] || [eff,'pill-neutral',''];
-  const overridden = !!lc.overrideTier && lc.overrideTier!==lc.tier;
+  if(q.status!=='NEW_CUSTOMER' || !q.leadCheck) return '';
+  const lc = q.leadCheck, t = LEAD_TIERS[lc.tier] || [lc.tier,'pill-neutral',''];
   const reasons = (lc.reasons||[]).map(r=>{
     const u = safeUrl(r.url);
     const sign = r.points>0 ? '+'+r.points : (r.points<0 ? String(r.points) : '·');
@@ -1934,44 +1933,18 @@ function leadSection(q){
   const co = lc.research && lc.research.company;
   const dropped = (lc.research && lc.research.dropped || []).length;
   const when = new Date(lc.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  const opts = Object.keys(LEAD_TIERS).map(k=>`<option value="${k}" ${eff===k?'selected':''}>${LEAD_TIERS[k][0]}</option>`).join('');
   return `<div style="margin-top:12px; border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
       <span style="font-size:12px; font-weight:700; color:var(--text-2);">Lead quality</span>
-      <span class="pill ${t[1]}">${esc(t[0])}</span>
-      <span style="font-size:13px; font-weight:700;">${lc.score}/100</span>
-      ${overridden?`<span class="pill pill-neutral" title="${esc(lc.overrideNote||'')}">overridden by a person (AI tier: ${esc((LEAD_TIERS[lc.tier]||[lc.tier])[0])})</span>`:''}
-      <span style="font-size:11.5px; color:var(--text-muted);">checked ${esc(when)}</span>
+      <span style="font-size:12.5px;">${esc(t[2])}</span>
+      <span style="font-size:11.5px; color:var(--text-muted);">checked automatically ${esc(when)}</span>
     </div>
-    <div style="font-size:12.5px; margin-top:6px;">${esc(t[2])}</div>
     ${co && (co.name||co.website||co.country) ? `<div style="font-size:12px; color:var(--text-muted); margin-top:4px;">Found: ${esc([co.name,co.country,co.whatTheySell].filter(Boolean).join(' · '))}${safeUrl(co.website)?` · <a href="${esc(safeUrl(co.website))}" target="_blank" rel="noopener noreferrer">${esc(co.website)}</a>`:''}</div>`:''}
     <details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-2);">Why this score</summary>
       <ul style="list-style:none; padding:0; margin:8px 0 0; font-size:12.5px;">${reasons}</ul>
       <div style="font-size:11.5px; color:var(--text-muted); margin-top:8px;">Email domain: ${esc(f.domain||'unknown')}${f.isFreeMail?' (free-mail)':''}${f.domainAgeDays!=null?' · registered '+Math.round(f.domainAgeDays/30)+' months ago':''}. Sanctions-list screening is <strong>not included in this version</strong>: check names by hand if in doubt. Findings the checker could not verify were discarded${dropped?` (${dropped} this time)`:''}. Score v${esc(lc.scoreVersion)}.</div>
     </details>
-    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
-      <button class="btn" data-lead-run="${id}" ${busy?'disabled':''}>${busy?'Researching…':'Re-check'}</button>
-      <select data-lead-tier="${id}" style="font-size:12px; padding:5px 8px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text);">${opts}</select>
-      <input data-lead-note="${id}" placeholder="Note (required to override)" value="${esc(lc.overrideNote||'')}" style="font-size:12px; padding:5px 8px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); min-width:190px;">
-      <button class="btn" data-lead-override="${id}">Override tier</button>
-    </div>
   </div>`;
-}
-async function runLeadCheckUi(id){
-  LEAD_BUSY[id]=true; route();
-  try{ await draftApi(id,'POST',null,'/lead-check'); }
-  catch(e){ showToast(e.message||'Could not check this buyer.'); }
-  LEAD_BUSY[id]=false; await loadInquiries(); route();
-}
-async function overrideLead(id){
-  const sel = document.querySelector('[data-lead-tier="'+id+'"]'), note = document.querySelector('[data-lead-note="'+id+'"]');
-  const q = INQUIRIES.find(x=>x.id===id); const lc = q && q.leadCheck;
-  const tier = sel ? sel.value : null;
-  try{
-    if(lc && tier===lc.tier){ await draftApi(id,'PUT',{tier:null},'/lead-check'); showToast('Override cleared.'); }
-    else { await draftApi(id,'PUT',{tier, note: note?note.value:''},'/lead-check'); showToast('Tier overridden.'); }
-  }catch(e){ showToast(e.message||'Could not save the override.'); }
-  await loadInquiries(); route();
 }
 
 // ---- Step 3: draft reply (AI writes, a human edits, n8n files it in Gmail Drafts; nothing is ever sent) ----
@@ -2339,10 +2312,6 @@ document.addEventListener('click', (e)=>{
 
   const convEl = e.target.closest('[data-convert-inquiry]');
   if(convEl){ e.stopPropagation(); const q = INQUIRIES.find(x=>x.id===convEl.dataset.convertInquiry); if(q) openNewOrderModal(prefillFromInquiry(q)); return; }
-  const lrEl = e.target.closest('[data-lead-run]');
-  if(lrEl){ e.stopPropagation(); runLeadCheckUi(lrEl.dataset.leadRun); return; }
-  const loEl = e.target.closest('[data-lead-override]');
-  if(loEl){ e.stopPropagation(); overrideLead(loEl.dataset.leadOverride); return; }
   const dgEl = e.target.closest('[data-draft-gen]');
   if(dgEl){ e.stopPropagation(); generateDraft(dgEl.dataset.draftGen); return; }
   const dsEl = e.target.closest('[data-draft-save]');
