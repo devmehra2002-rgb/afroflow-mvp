@@ -51,7 +51,7 @@ export function validateResearch(raw: RawResearch, searchedUrls: string[], email
     const signal = SCAM_SIGNALS.find((x) => x === s.signal);
     if (!signal || !s.quote.trim() || !hay.includes(norm(s.quote))) { dropped.push(`scam signal not found in the email: ${s.signal}`); return []; }
     return [{ signal, quote: s.quote }];
-  });
+  }).filter((s, i, a) => a.findIndex((x) => x.signal === s.signal) === i); // each kind of signal counts once
   const hasSite = findings.some((f) => f.kind === "website" && f.effect !== "negative");
   const hasTrace = findings.some((f) => ["registry", "directory", "news", "marketplace"].includes(f.kind) && f.effect !== "negative");
   if (raw.websiteMatchesCompany && !hasSite) dropped.push("'website matches' claim has no verified website finding");

@@ -49,6 +49,16 @@ const good = { product: true, quantity: true, incoterm: true, destinationPort: t
     assert.deepEqual(r.scamSignals.map((s) => s.signal), ["advance_payment_request"]);
   });
 
+  await ok("the same scam signal repeated counts once", () => {
+    const r = validateResearch(raw({ scamSignals: [{ signal: "urgency", quote: "URGENT" }, { signal: "urgency", quote: "today" }] }), SEARCHED, "URGENT, reply today");
+    assert.equal(r.scamSignals.length, 1);
+  });
+  await ok("a company domain that cannot receive mail is penalised; free-mail is not", () => {
+    const bad = scoreLead({ facts: facts({ hasMx: false }), research: null, extracted: good });
+    assert.ok(bad.reasons.some((x) => x.points === -8));
+    const free = scoreLead({ facts: facts({ domain: "gmail.com", isFreeMail: true, hasMx: null }), research: null, extracted: good });
+    assert.ok(!free.reasons.some((x) => x.points < 0));
+  });
   await ok("strong lead scores high and is Strong", () => {
     const r = scoreLead({ facts: facts(), research: validateResearch(raw(), SEARCHED, "x"), extracted: good });
     assert.equal(r.tier, "STRONG");

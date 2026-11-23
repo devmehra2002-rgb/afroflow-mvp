@@ -34,7 +34,7 @@ export function scoreLead(i: ScoreInput): { score: number; tier: Tier; reasons: 
   if (companyDomain) add("Identity", `Writes from a company email domain (${f.domain})`, 10);
   else if (f.isDisposable) add("Identity", "Writes from a disposable email address", 0);
   else if (f.isFreeMail) add("Identity", "Writes from a free-mail address (common for small buyers; says nothing either way)", 0);
-  else if (f.hasMx === false) add("Identity", "The email domain cannot receive mail", 0);
+  else if (f.hasMx === false) add("Identity", "The email domain cannot receive mail, so a reply would not reach them", 0);
   if (r?.websiteMatchesCompany) add("Identity", "A website was found that matches the company named", 10, firstUrl(["website"]));
   if (r?.nameCompanyAgree) add("Identity", "Sender name and company agree with what the web shows", 10, firstUrl(["website", "directory", "registry"]));
 
@@ -64,6 +64,7 @@ export function scoreLead(i: ScoreInput): { score: number; tier: Tier; reasons: 
   let pen = 0;
   for (const s of r?.scamSignals ?? []) { const [p, t] = PENALTY[s.signal]; pen += p; add("Warning", `${t}: "${s.quote.slice(0, 80)}"`, p); }
   if (f.isFreeMail && (cc ?? 0) >= 5) { pen -= 5; add("Warning", "Free-mail address with a very large order", -5); }
+  if (f.hasMx === false && f.domain && !f.isFreeMail) { pen -= 8; add("Warning", "The email domain cannot receive mail", -8); }
   if (r?.websiteMatchesCompany === false) { pen -= 6; add("Warning", "A website was found but does not match the company named", -6); }
   const negFinding = r?.findings.find((x) => x.effect === "negative");
   if (negFinding) { pen -= 6; add("Warning", `Negative finding: ${negFinding.text.slice(0, 100)}`, -6, negFinding.url); }
