@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { inQuietHours } from "./format";
-import { isConfigured, metaSender, ownerNumber, type Sender } from "./client";
+import { activeSender, isConfigured, ownerNumber, type Sender } from "./client";
 
 const WINDOW_MS = 24 * 3600_000;
 const EXPIRE_MS: Record<string, number> = { DAILY_SUMMARY: 12 * 3600_000 };
@@ -24,7 +24,7 @@ const oneLine = (s: string) => s.replace(/\*/g, "").replace(/[\r\n\t]+/g, " | ")
 // otherwise an approved template if one is set (WHATSAPP_TEMPLATE_NAME), otherwise it waits; old items expire; 3+ small
 // updates are combined into one message; approvals always go as their own message.
 export async function flush(opts: { sender?: Sender; now?: Date } = {}): Promise<{ sent: number; waiting: number; expired: number; note?: string }> {
-  const sender = opts.sender ?? metaSender, now = opts.now ?? new Date();
+  const sender = opts.sender ?? activeSender(), now = opts.now ?? new Date();
   if (!isConfigured()) return { sent: 0, waiting: 0, expired: 0, note: "WhatsApp is not configured" };
   const to = ownerNumber();
 

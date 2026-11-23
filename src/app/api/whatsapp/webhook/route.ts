@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { digits, metaSender, ownerNumber, verifySignature } from "@/lib/whatsapp/client";
-import { respond } from "@/lib/whatsapp/inbound";
+import { processOwnerMessage } from "@/lib/whatsapp/process";
 import { flush } from "@/lib/whatsapp/notify";
 
 export const maxDuration = 30;
@@ -28,24 +27,12 @@ export async function POST(req: NextRequest) {
   try { body = JSON.parse(raw); } catch { return NextResponse.json({ ok: true }); }
   const owner = ownerNumber();
   const msgs = (body.entry ?? []).flatMap((e) => (e.changes ?? []).flatMap((c) => c.value?.messages ?? []));
-
   for (const m of msgs) {
     if (!owner || digits(m.from) !== owner) continue; // anyone else is ignored
-    try { await prisma.whatsAppMessage.create({ data: { id: m.id, direction: "IN", waId: owner, kind: m.type, body: (m.text?.body ?? "").slice(0, 1000) || null } }); }
-    catch (e) { if ((e as { code?: string }).code === "P2002") continue; throw e; } // already handled
-    try {
-      const text = m.text?.body ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? m.button?.text ?? "";
-      const { reply, intent } = m.type === "audio" || m.type === "voice" ? { reply: "I can't listen to voice notes yet. Please type your message.", intent: "VOICE" } : text ? await respond(text, owner) : { reply: "I can only read text messages for now.", intent: "UNSUPPORTED" };
-      const sent = await metaSender.sendText(owner, reply);
-      await prisma.whatsAppMessage.update({ where: { id: m.id }, data: { intent } });
-      await prisma.whatsAppMessage.create({ data: { id: sent.id, direction: "OUT", waId: owner, body: reply.slice(0, 1500), intent } }).catch(() => {});
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "failed";
-      await prisma.whatsAppMessage.update({ where: { id: m.id }, data: { error: msg.slice(0, 200) } }).catch(() => {});
-      await metaSender.sendText(owner, "Sorry, something went wrong on my side. Please try again in a minute.").catch(() => {});
-    }
+    const text = m.text?.body ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? m.button?.text ?? "";
+    await processOwnerMessage({ id: m.id, type: m.type, text }, metaSender);
   }
   // the owner just wrote, so the 24-hour window is open: deliver anything that was waiting
-  if (msgs.length) await flush().catch(() => {});
+  if (msgs.length) await flush({ sender: metaSender }).catch(() => {});
   return NextResponse.json({ ok: true });
 }

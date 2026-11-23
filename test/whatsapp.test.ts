@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import crypto from "crypto";
-import { verifySignature, digits } from "../src/lib/whatsapp/client";
+import { verifySignature, digits, verifyTwilioSignature } from "../src/lib/whatsapp/client";
 import { parseCommand, classifyWithAI, findOrderId } from "../src/lib/whatsapp/intents";
 import { inQuietHours } from "../src/lib/whatsapp/format";
 import { flowState, stepDueDates, STEPS } from "../src/lib/whatsapp/flow";
@@ -85,6 +85,16 @@ const sign = (body: string, secret: string) => "sha256=" + crypto.createHmac("sh
     assert.equal(f.active?.label, "Issue Proforma Invoice");
     assert.ok(f.overdueDays >= 0);
     assert.equal(flowState({ ...o, doneCount: 15 }).complete, true);
+  });
+  await ok("Twilio signature: genuine accepted; wrong token, other URL, changed field, missing header refused", () => {
+    const url = "https://example.com/api/whatsapp/twilio", params = { From: "whatsapp:+919876543210", Body: "orders", MessageSid: "SM1" };
+    const sig = crypto.createHmac("sha1", "tok").update(url + Object.keys(params).sort().map((k) => k + (params as Record<string, string>)[k]).join("")).digest("base64");
+    assert.equal(verifyTwilioSignature(url, params, sig, "tok"), true);
+    assert.equal(verifyTwilioSignature(url, params, sig, "other"), false);
+    assert.equal(verifyTwilioSignature(url + "x", params, sig, "tok"), false);
+    assert.equal(verifyTwilioSignature(url, { ...params, Body: "approve 1234" }, sig, "tok"), false);
+    assert.equal(verifyTwilioSignature(url, params, null, "tok"), false);
+    assert.equal(verifyTwilioSignature(url, params, sig, undefined), false);
   });
   console.log(`\n${n} checks passed`);
 })();
