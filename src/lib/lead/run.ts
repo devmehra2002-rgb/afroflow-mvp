@@ -51,7 +51,7 @@ export async function runLeadCheck(inquiryId: string): Promise<{ ok: true; id: s
   const row = await prisma.leadCheck.create({
     data: {
       inquiryId, domain: facts.domain ?? q.fromEmail, score: s.score, tier: s.tier,
-      facts: { ...facts, suggestion: s.suggestion } as object, research: (research ?? undefined) as object | undefined,
+      facts: { ...facts, suggestion: s.suggestion, rawPoints: s.rawPoints, maxPoints: s.maxPoints } as object, research: (research ?? undefined) as object | undefined,
       reasons: reasons as object, scoreVersion: SCORE_VERSION, promptVersion: version, model, searches,
     },
   });

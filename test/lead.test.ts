@@ -63,7 +63,19 @@ const good = { product: true, quantity: true, incoterm: true, destinationPort: t
     const r = scoreLead({ facts: facts(), research: validateResearch(raw(), SEARCHED, "x"), extracted: good });
     assert.equal(r.tier, "STRONG");
     assert.ok(r.score >= 75 && r.score <= 100, String(r.score));
+    assert.equal(r.maxPoints, 75);
     assert.ok(r.reasons.some((x) => x.url === "https://acme.ae"));
+  });
+  await ok("a perfect new buyer scores exactly 100 (75 of 75 points)", () => {
+    const r = scoreLead({ facts: facts(), research: validateResearch(raw(), SEARCHED, "x"), extracted: good });
+    assert.equal(r.rawPoints, 75);
+    assert.equal(r.score, 100);
+    assert.equal(r.tier, "STRONG");
+  });
+  await ok("one missing item (domain under 6 months) still scores Strong after scaling", () => {
+    const r = scoreLead({ facts: facts({ domainAgeDays: 90 }), research: validateResearch(raw(), SEARCHED, "x"), extracted: good });
+    assert.equal(r.rawPoints, 67);
+    assert.equal(r.tier, "STRONG");
   });
   await ok("small genuine buyer on free-mail with no web presence is Unverified, not bad", () => {
     const r = scoreLead({ facts: facts({ domain: "gmail.com", isFreeMail: true, hasMx: null, domainAgeDays: null }), research: validateResearch(raw({ websiteMatchesCompany: null, nameCompanyAgree: null, independentTrace: null, productFits: "unknown", findings: [] }), [], "x"), extracted: good });

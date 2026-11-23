@@ -3,7 +3,10 @@ import type { Research, ScamSignal } from "./research";
 
 // The score and the tier are decided HERE, by plain rules. The AI only supplies findings (with links).
 // Same input always gives the same answer. Rubric agreed in the blueprint; tune the numbers below.
-export const SCORE_VERSION = "1.0";
+export const SCORE_VERSION = "1.1";
+// Identity 30 + Footprint 20 + Request realism 15 + Message quality 10. The 15 "history with us" points cannot be
+// earned by a new buyer, so the raw points are scaled to 100 over these 75: a perfect new buyer scores 100.
+export const MAX_EARNABLE = 75;
 
 export type Tier = "STRONG" | "REASONABLE" | "VERIFY_FIRST" | "UNVERIFIED" | "STOP_AND_CHECK";
 export type Reason = { group: string; text: string; points: number; url?: string };
@@ -23,7 +26,7 @@ const PENALTY: Record<ScamSignal, [number, string]> = {
   mismatched_details: [-8, "Sender, company or country details contradict each other"],
 };
 
-export function scoreLead(i: ScoreInput): { score: number; tier: Tier; reasons: Reason[]; suggestion: string } {
+export function scoreLead(i: ScoreInput): { score: number; rawPoints: number; maxPoints: number; tier: Tier; reasons: Reason[]; suggestion: string } {
   const R: Reason[] = [];
   const add = (group: string, text: string, points: number, url?: string) => R.push({ group, text, points, url });
   const f = i.facts, r = i.research;
@@ -70,7 +73,8 @@ export function scoreLead(i: ScoreInput): { score: number; tier: Tier; reasons: 
   if (negFinding) { pen -= 6; add("Warning", `Negative finding: ${negFinding.text.slice(0, 100)}`, -6, negFinding.url); }
   if (pen < -30) { add("Warning", "Total penalties are capped at -30", -30 - pen); }
 
-  const score = Math.max(0, Math.min(100, R.reduce((a, x) => a + x.points, 0)));
+  const rawPoints = R.reduce((a, x) => a + x.points, 0);
+  const score = Math.max(0, Math.min(100, Math.round((rawPoints / MAX_EARNABLE) * 100)));
   const negative = R.some((x) => x.group === "Warning" && x.points < 0);
   let tier: Tier;
   if (i.sanctionsPossibleMatch === true) tier = "STOP_AND_CHECK";
@@ -86,5 +90,5 @@ export function scoreLead(i: ScoreInput): { score: number; tier: Tier; reasons: 
     UNVERIFIED: "Little evidence either way. Treat as unknown, not bad: a small genuine buyer may have no web presence.",
     STOP_AND_CHECK: "Possible sanctions match: do not engage until a person has checked.",
   }[tier];
-  return { score, tier, reasons: R, suggestion };
+  return { score, rawPoints, maxPoints: MAX_EARNABLE, tier, reasons: R, suggestion };
 }
