@@ -7,12 +7,7 @@ const API_VERSION = () => process.env.WHATSAPP_API_VERSION || "v23.0";
 
 export const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 export const ownerNumber = () => digits(process.env.OWNER_WHATSAPP);
-// Which service carries the messages: "meta" (WhatsApp Cloud API, default) or "twilio" (Twilio's WhatsApp sandbox / API).
-export const provider = (): "meta" | "twilio" => (process.env.WHATSAPP_PROVIDER === "twilio" ? "twilio" : "meta");
-export const isConfigured = () =>
-  provider() === "twilio"
-    ? !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_FROM && ownerNumber())
-    : !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && ownerNumber());
+export const isConfigured = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && ownerNumber());
 
 // Meta signs every webhook call: header "X-Hub-Signature-256: sha256=<hmac of the raw body using the app secret>".
 export function verifySignature(rawBody: string, header: string | null, appSecret: string | undefined): boolean {
@@ -44,31 +39,3 @@ export const metaSender: Sender = {
   sendTemplate: (to, name, lang, params) =>
     post({ messaging_product: "whatsapp", to, type: "template", template: { name, language: { code: lang }, components: params.length ? [{ type: "body", parameters: params.map((text) => ({ type: "text", text: text.slice(0, 900) })) }] : [] } }),
 };
-
-// ---- Twilio ----
-// Twilio signs each webhook call: X-Twilio-Signature = base64(HMAC-SHA1(authToken, url + every form field sorted by name, as name+value)).
-export function verifyTwilioSignature(url: string, params: Record<string, string>, header: string | null, authToken: string | undefined): boolean {
-  if (!header || !authToken) return false;
-  const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
-  const expected = crypto.createHmac("sha1", authToken).update(data, "utf8").digest("base64");
-  if (expected.length !== header.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(header));
-}
-
-export const twilioSender: Sender = {
-  sendText: async (to, body) => {
-    const sid = process.env.TWILIO_ACCOUNT_SID!;
-    const from = digits(process.env.TWILIO_WHATSAPP_FROM);
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: "POST",
-      headers: { authorization: "Basic " + Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64"), "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ From: `whatsapp:+${from}`, To: `whatsapp:+${digits(to)}`, Body: body.slice(0, 1500) }),
-    });
-    const j = (await r.json().catch(() => ({}))) as { sid?: string; message?: string; code?: number };
-    if (!r.ok) throw new Error(`Twilio send failed (${r.status}${j.code ? `, code ${j.code}` : ""}): ${(j.message ?? "").slice(0, 160)}`);
-    return { id: j.sid ?? crypto.randomUUID() };
-  },
-  sendTemplate: async () => { throw new Error("Message templates are not supported on the Twilio sandbox; the owner must message first (24-hour window)"); },
-};
-
-export const activeSender = (): Sender => (provider() === "twilio" ? twilioSender : metaSender);
