@@ -5,7 +5,7 @@ import { parseGmailMessage, parseSender } from "@/lib/intake/rules";
 import { GmailAuthError, createDraft, gmail, sendMail } from "./client";
 
 type Msg = Parameters<typeof parseGmailMessage>[0] & { labelIds?: string[] };
-type HistoryResp = { history?: { messagesAdded?: { message: { id: string; labelIds?: string[] } }[] }[]; nextPageToken?: string; historyId?: string };
+type HistoryResp = { history?: { messagesAdded?: { message: { id: string; labelIds?: string[] } }[]; labelsAdded?: { message: { id: string }; labelIds?: string[] }[] }[]; nextPageToken?: string; historyId?: string };
 
 const WATCH_RENEW_BEFORE_MS = 2 * 24 * 3600_000;
 const MAX_PER_RUN = 15; // keeps one run inside the 60s limit; the rest is picked up next run
@@ -43,7 +43,19 @@ export function shouldSkip(labels: string[], sender: string | undefined, ownEmai
   return /^AfroFlow reminder:/i.test(subject);
 }
 
-async function ingestById(id: string, ownEmail: string, res: SyncResult) {
+// PRIVACY: AfroFlow reads ONLY mail you have put under one Gmail label (default "AfroFlow"; set GMAIL_INTAKE_LABEL
+// to change it). Everything else in the inbox is never opened, stored or sent to the AI.
+// If the label does not exist, nothing is read at all.
+async function intakeLabelId(): Promise<string | null> {
+  const name = (process.env.GMAIL_INTAKE_LABEL || "AfroFlow").toLowerCase();
+  const { data } = await gmail<{ labels?: { id: string; name: string }[] }>("/labels");
+  return data.labels?.find((l) => l.name.toLowerCase() === name)?.id ?? null;
+}
+
+async function ingestById(id: string, ownEmail: string, labelId: string, res: SyncResult) {
+  // Look at the labels first (no email text is read yet).
+  const head = await gmail<{ labelIds?: string[] }>(`/messages/${id}?format=minimal`);
+  if (head.status === 404 || !(head.data.labelIds ?? []).includes(labelId)) { res.skipped++; return; }
   const { status, data } = await gmail<Msg>(`/messages/${id}?format=full`);
   if (status === 404) { res.skipped++; return; }
   const labels = data.labelIds ?? [];
@@ -62,26 +74,38 @@ async function pullNewMail(ownEmail: string, historyId: string | null, res: Sync
     res.note = "Started watching from now; older mail is not imported.";
     return;
   }
+  const labelId = await intakeLabelId();
+  if (!labelId) {
+    await prisma.gmailConnection.update({ where: { id: "owner" }, data: { historyId: profile.historyId } });
+    res.note = `No Gmail label named "${process.env.GMAIL_INTAKE_LABEL || "AfroFlow"}" exists, so no mail was read. Create it and add a Gmail filter that applies it to buyer emails.`;
+    return;
+  }
   const ids = new Set<string>();
   let page: string | undefined;
   let expired = false;
   do {
-    const q = new URLSearchParams({ startHistoryId: historyId, historyTypes: "messageAdded", labelId: "INBOX", maxResults: "100" });
+    // messageAdded: mail that arrives already labelled by your Gmail filter. labelAdded: mail you label by hand later.
+    const q = new URLSearchParams({ startHistoryId: historyId, maxResults: "100" });
+    q.append("historyTypes", "messageAdded");
+    q.append("historyTypes", "labelAdded");
     if (page) q.set("pageToken", page);
     const { status, data } = await gmail<HistoryResp>(`/history?${q}`);
     if (status === 404) { expired = true; break; } // saved position too old: fall back to a recent search
-    for (const h of data.history ?? []) for (const a of h.messagesAdded ?? []) ids.add(a.message.id);
+    for (const h of data.history ?? []) {
+      for (const a of h.messagesAdded ?? []) ids.add(a.message.id);
+      for (const a of h.labelsAdded ?? []) if (a.labelIds?.includes(labelId)) ids.add(a.message.id);
+    }
     page = data.nextPageToken;
   } while (page);
 
   if (expired) {
-    const { data } = await gmail<{ messages?: { id: string }[] }>(`/messages?q=${encodeURIComponent("in:inbox newer_than:2d")}&maxResults=50`);
+    const { data } = await gmail<{ messages?: { id: string }[] }>(`/messages?q=${encodeURIComponent(`in:inbox label:${(process.env.GMAIL_INTAKE_LABEL || "AfroFlow").replace(/\s+/g, "-")} newer_than:2d`)}&maxResults=50`);
     for (const m of data.messages ?? []) ids.add(m.id);
     res.note = "Saved Gmail position was too old; re-checked the last 2 days.";
   }
 
   const todo = [...ids].slice(0, MAX_PER_RUN);
-  for (const id of todo) await ingestById(id, ownEmail, res);
+  for (const id of todo) await ingestById(id, ownEmail, labelId, res);
   // Only move the bookmark when everything seen was handled, so nothing is lost if there were more than MAX_PER_RUN.
   if (ids.size <= MAX_PER_RUN) await prisma.gmailConnection.update({ where: { id: "owner" }, data: { historyId: profile.historyId } });
   else res.note = `${ids.size - MAX_PER_RUN} more emails will be picked up on the next run.`;
