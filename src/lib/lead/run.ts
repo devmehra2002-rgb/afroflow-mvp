@@ -4,6 +4,7 @@ import { DEFAULT_MODEL } from "@/lib/intake/constants";
 import { gatherFacts } from "./facts";
 import { loadLeadPrompt, researchSender, validateResearch, type Research } from "./research";
 import { SCORE_VERSION, scoreLead } from "./score";
+import { notifyLeadCheck } from "@/lib/whatsapp/events";
 
 const CACHE_DAYS = 30;
 
@@ -55,6 +56,7 @@ export async function runLeadCheck(inquiryId: string): Promise<{ ok: true; id: s
       reasons: reasons as object, scoreVersion: SCORE_VERSION, promptVersion: version, model, searches,
     },
   });
+  await notifyLeadCheck(inquiryId, s.tier, s.score, s.suggestion).catch((e) => console.error("whatsapp notify", e instanceof Error ? e.message : e));
   return { ok: true, id: row.id };
 }
 export { validateResearch };

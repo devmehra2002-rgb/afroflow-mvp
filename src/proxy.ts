@@ -17,6 +17,6 @@ export default auth((req) => {
 
 export const config = {
   // /api/intake is exempt from the Google sign-in gate: the Gmail sync timer calls it with a
-  // shared-secret header (or the Gmail push token) instead, checked inside each route.
-  matcher: ["/((?!api/auth|api/intake|_next/static|_next/image|favicon.ico).*)"],
+  // shared-secret header (or the Gmail push token) instead, checked inside each route. /api/whatsapp is Meta's webhook: it is checked by signature inside the route.
+  matcher: ["/((?!api/auth|api/intake|api/whatsapp|_next/static|_next/image|favicon.ico).*)"],
 };

@@ -238,3 +238,47 @@ model LeadCheck {
   @@index([inquiryId])
   @@index([domain])
 }
+
+// ---- WhatsApp owner assistant (see src/lib/whatsapp) ----
+model WhatsAppMessage {
+  id        String   @id
+  direction String
+  waId      String
+  kind      String   @default("text")
+  body      String?
+  intent    String?
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([waId, direction, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  kind      String
+  dedupeKey String    @unique
+  text      String
+  status    String    @default("PENDING")
+  attempts  Int       @default(0)
+  lastError String?
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  @@index([status, createdAt])
+}
+
+model ApprovalRequest {
+  id           String    @id @default(cuid())
+  kind         String
+  refId        String
+  versionHash  String
+  code         String
+  status       String    @default("PENDING")
+  summary      String
+  decidedAt    DateTime?
+  decidedVia   String?
+  decisionText String?
+  createdAt    DateTime  @default(now())
+
+  @@index([status, createdAt])
+}

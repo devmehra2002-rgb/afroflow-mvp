@@ -4,6 +4,8 @@ import { ingestEmail } from "@/lib/intake/ingest";
 import { parseGmailMessage, parseSender } from "@/lib/intake/rules";
 import { GmailAuthError, createDraft, gmail, sendMail } from "./client";
 import { runPendingLeadChecks } from "@/lib/lead/auto";
+import { notifyReplyDue } from "@/lib/whatsapp/events";
+import { runWhatsAppStep } from "@/lib/whatsapp/step";
 
 type Msg = Parameters<typeof parseGmailMessage>[0] & { labelIds?: string[] };
 type HistoryResp = { history?: { messagesAdded?: { message: { id: string; labelIds?: string[] } }[]; labelsAdded?: { message: { id: string }; labelIds?: string[] }[] }[]; nextPageToken?: string; historyId?: string };
@@ -11,7 +13,7 @@ type HistoryResp = { history?: { messagesAdded?: { message: { id: string; labelI
 const WATCH_RENEW_BEFORE_MS = 2 * 24 * 3600_000;
 const MAX_PER_RUN = 15; // keeps one run inside the 60s limit; the rest is picked up next run
 
-export type SyncResult = { ingested: number; duplicates: number; skipped: number; drafts: number; reminders: number; leadChecks: number; watchRenewed: boolean; note?: string; error?: string };
+export type SyncResult = { ingested: number; duplicates: number; skipped: number; drafts: number; reminders: number; leadChecks: number; whatsapp?: { queued: number; sent: number; waiting: number; note?: string }; watchRenewed: boolean; note?: string; error?: string };
 
 // One pass: pull new mail, save approved replies as Gmail drafts, send due reminders, keep the push watch alive.
 // Safe to run as often as you like: every step is idempotent.
@@ -29,6 +31,7 @@ export async function runSync(): Promise<SyncResult> {
     // Lead checks last, and only with the time that is left in this run (the host stops a run at 60 seconds).
     const lc = await runPendingLeadChecks(startedAt + 55_000);
     res.leadChecks = lc.checked;
+    res.whatsapp = await runWhatsAppStep().catch((e) => ({ queued: 0, sent: 0, waiting: 0, note: e instanceof Error ? e.message.slice(0, 120) : "whatsapp step failed" }));
     if (lc.note) res.note = [res.note, lc.note].filter(Boolean).join(" ");
     await prisma.gmailConnection.update({ where: { id: "owner" }, data: { lastSyncAt: new Date(), lastError: null } });
   } catch (e) {
@@ -149,6 +152,7 @@ async function sendReminders(ownEmail: string, res: SyncResult) {
     try {
       await sendMail(ownEmail, `AfroFlow reminder: ${r.subject ?? "(no subject)"}`, `${when}: "${r.subject ?? "(no subject)"}" from ${who}. ${next}`);
       res.reminders++;
+      await notifyReplyDue(r.id, r.subject, who, mins).catch(() => {});
     } catch (e) {
       await prisma.inquiry.update({ where: { id: r.id }, data: { reminderSentAt: null } }); // try again next run
       throw e;

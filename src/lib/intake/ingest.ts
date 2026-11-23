@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { DEFAULT_MODEL, REPLY_WINDOW_HOURS, TOTAL_STEPS, MAX_BODY_CHARS } from "./constants";
 import { extractEnquiry, loadPrompt, type Enquiry } from "./extract";
 import { clipText } from "./clip";
+import { notifyNewEnquiry } from "@/lib/whatsapp/events";
 import { applyPreviousOrderRule, parseSender, routeInquiry } from "./rules";
 
 export type IncomingEmail = { messageId: string | null; from: string; subject: string; body: string; date: string | null };
@@ -106,5 +107,6 @@ export async function ingestEmail(b: IncomingEmail) {
     });
   }
 
+  await notifyNewEnquiry(inquiry.id).catch((e) => console.error("whatsapp notify", e instanceof Error ? e.message : e)); // never blocks the intake
   return { id: inquiry.id, status: inquiry.status, duplicate: false as const, routeReason: inquiry.routeReason, orderId: inquiry.orderId };
 }
