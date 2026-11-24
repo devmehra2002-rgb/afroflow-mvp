@@ -73,6 +73,14 @@ delete process.env.WHATSAPP_TEMPLATE_NAME;
     await p.whatsAppMessage.deleteMany({ where: { direction: "IN" } }); process.env.WHATSAPP_TEMPLATE_NAME = "afroflow_alert";
     await enqueue({ kind: "ORDER_DELAY", dedupeKey: "t-9", text: "*AA-X*: late\nsecond line" }); await flush({ sender });
     assert.equal(tmpl.length, 1); assert.ok(!tmpl[0].includes("\n") && !tmpl[0].includes("*")); console.log("ok - closed window uses the template, flattened to one line");
+    // 8b. Meta's "business account locked" (131031) must not burn retries: the alert stays waiting
+    await p.whatsAppMessage.create({ data: { id: "in-lock", direction: "IN", waId: "910000000001", body: "orders" } });
+    delete process.env.WHATSAPP_TEMPLATE_NAME;
+    await enqueue({ kind: "ORDER_DELAY", dedupeKey: "t-lock", text: "*AA-X*: lock test" });
+    const locked = { sendText: async () => { throw new Error("WhatsApp send failed (400, code 131031): Business Account locked"); }, sendTemplate: async () => { throw new Error("x"); } };
+    const lf = await flush({ sender: locked });
+    const lockedRow = await p.notification.findUniqueOrThrow({ where: { dedupeKey: "t-lock" } });
+    assert.equal(lockedRow.status, "PENDING"); assert.equal(lockedRow.attempts, 0); assert.ok(/locked by Meta/.test(lf.note ?? "")); console.log("ok - Meta account lock (131031) leaves alerts waiting and burns no retries");
     // 9. owner-only is enforced in the webhook (checked by code review + below) / expiry
     await p.notification.create({ data: { kind: "NEW_ENQUIRY", dedupeKey: "t-old", text: "old", createdAt: new Date(Date.now() - 30 * 3600_000) } });
     f = await flush({ sender }); assert.ok(f.expired >= 1); console.log("ok - items older than a day expire instead of arriving late");

@@ -60,6 +60,11 @@ export async function flush(opts: { sender?: Sender; now?: Date } = {}): Promise
       sent++;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "send failed";
+      if (/131031/.test(msg)) {
+        // Meta has locked the WhatsApp business account (it needs business verification). Retrying cannot help and is not the
+        // alert's fault: leave everything waiting (it expires after a day) and say why, once, in the sync result.
+        return { sent, waiting: live.length - sent, expired, note: "WhatsApp is locked by Meta until the business is verified (error 131031); alerts are waiting" };
+      }
       await prisma.notification.updateMany({ where: { id: { in: b.ids } }, data: { attempts: { increment: 1 }, lastError: msg.slice(0, 200) } });
       await prisma.notification.updateMany({ where: { id: { in: b.ids }, attempts: { gte: 5 } }, data: { status: "FAILED" } });
       return { sent, waiting: live.length - sent, expired, note: msg };
